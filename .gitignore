@@ -1,6 +1,4 @@
 # Config & Secrets
-firebase-config.js
-.env
 .DS_Store
 
 # Dependencies
