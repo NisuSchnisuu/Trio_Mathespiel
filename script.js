@@ -170,11 +170,19 @@ function init() {
 
         // Detect OS for instructions
         const ua = navigator.userAgent || navigator.vendor || window.opera;
-        const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+        const isTouch = (navigator.maxTouchPoints && navigator.maxTouchPoints > 1);
+
+        // iPad often says "Macintosh" but has touch points
+        const isIOS = (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) ||
+            (ua.includes("Mac") && isTouch);
+
         const isAndroid = /android/i.test(ua);
-        const isWindows = /windows phone/i.test(ua) || /windows/i.test(ua);
+        // Windows/Mac desktop fallback
 
         let targetId = 'install-desktop'; // Fallback
+
+        console.log("PWA Detect - UA:", ua, "Touch:", isTouch); // Debug
+
         if (isIOS) targetId = 'install-ios';
         else if (isAndroid) targetId = 'install-android';
 
