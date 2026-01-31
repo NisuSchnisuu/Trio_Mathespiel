@@ -1815,6 +1815,24 @@ function generateGridData(size) {
     }
 
     const solutions = findSolutions(newGrid, size, appState.difficulty, maxTarget);
+
+    // --- Validation Analysis ---
+    const possibleSet = new Set(solutions.map(s => s.result));
+    const impossible = [];
+    for (let i = 1; i <= maxTarget; i++) {
+        if (!possibleSet.has(i)) impossible.push(i);
+    }
+    console.group(`🎲 Analyse für Modus: ${appState.difficulty.toUpperCase()}`);
+    console.log(`Zahlenraum: 1 bis ${maxTarget}`);
+    console.log(`Anzahl Lösungen: ${solutions.length}`);
+    if (impossible.length > 0) {
+        console.log(`🚫 Unmögliche Zielzahlen (${impossible.length}):`, impossible.join(', '));
+    } else {
+        console.log("✅ Alle Zahlen im Bereich sind möglich!");
+    }
+    console.groupEnd();
+    // ---------------------------
+
     return { grid: newGrid, solutions };
 }
 
@@ -1888,35 +1906,39 @@ function tryAdd(triplet, diff, addSol) {
             addSol(triplet, (p[0] / p[1]) - p[2]);
         });
     } else {
-        // Profi: Full Permutations with +, -, *, /
-        // BUT strict filtering: Must use Mixed Operators (Point & Line)
+        // Profi: Full Permutations
+        // STRICT RULE: Line Operation (+/-) MUST be in parentheses. Point Operation (*//) MUST be outside.
+        // Allowed: (A +/- B) * C   or   (A +/- B) / C
+        // Allowed: A * (B +/- C)   or   A / (B +/- C)
+        // Disallowed: (A * B) + C  (Point in parens)
+
         const ops = ['+', '-', '*', '/'];
         const perms = [[a, b, c], [a, c, b], [b, a, c], [b, c, a], [c, a, b], [c, b, a]];
+
         perms.forEach(p => {
             ops.forEach(o1 => ops.forEach(o2 => {
-                // Filter: Must have (Point AND Line)
-                const hasPoint = (o1 === '*' || o1 === '/' || o2 === '*' || o2 === '/');
-                const hasLine = (o1 === '+' || o1 === '-' || o2 === '+' || o2 === '-');
+                const isLine1 = ['+', '-'].includes(o1);
+                const isPoint1 = ['*', '/'].includes(o1);
+                const isLine2 = ['+', '-'].includes(o2);
+                const isPoint2 = ['*', '/'].includes(o2);
 
-                if (hasPoint && hasLine) {
+                // Structure 1: (p0 o1 p1) o2 p2
+                // We assume parentheses are around the FIRST operation (o1).
+                // So o1 MUST be Line, o2 MUST be Point.
+                if (isLine1 && isPoint2) {
                     try {
-                        // Standard eval precedence will work.
-                        // We assume user can add parens to make it work.
-                        // e.g. A + B * C -> 14. User types A + (B * C) or (A + B) * C (different result).
-                        // We need to support BOTH precedence structures for the target.
-                        // 1. (A o1 B) o2 C
-                        // 2. A o1 (B o2 C)
-                        // Actually, straight eval covers standard precedence.
-                        // But (A+B)*C requires parens.
-
-                        // Structure 1: (p0 o1 p1) o2 p2
                         const res1 = eval(`(${p[0]}${o1}${p[1]})${o2}${p[2]}`);
                         addSol(triplet, res1);
+                    } catch (e) { }
+                }
 
-                        // Structure 2: p0 o1 (p1 o2 p2)
+                // Structure 2: p0 o1 (p1 o2 p2)
+                // We assume parentheses are around the SECOND operation (o2).
+                // So o2 MUST be Line, o1 MUST be Point.
+                if (isPoint1 && isLine2) {
+                    try {
                         const res2 = eval(`${p[0]}${o1}(${p[1]}${o2}${p[2]})`);
                         addSol(triplet, res2);
-
                     } catch (e) { }
                 }
             }));
