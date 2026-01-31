@@ -165,36 +165,41 @@ function init() {
     // I'll stick to blocking non-standalone.
 
     if (!isStandalone) {
-        // Show Install Modal
-        document.getElementById('pwa-install-modal').classList.add('active');
+        // Show the Trigger Button in Lobby
+        const installBtn = document.getElementById('btn-trigger-install');
+        if (installBtn) {
+            installBtn.style.display = 'block';
 
-        // Detect OS for instructions
-        const ua = navigator.userAgent || navigator.vendor || window.opera;
-        const isTouch = (navigator.maxTouchPoints && navigator.maxTouchPoints > 1);
+            installBtn.addEventListener('click', () => {
+                document.getElementById('pwa-install-modal').classList.add('active');
 
-        // iPad often says "Macintosh" but has touch points
-        const isIOS = (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) ||
-            (ua.includes("Mac") && isTouch);
+                // Detect OS logic (moved here so it runs when opened)
+                const ua = navigator.userAgent || navigator.vendor || window.opera;
+                const isTouch = (navigator.maxTouchPoints && navigator.maxTouchPoints > 1);
+                const isIOS = (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) || (ua.includes("Mac") && isTouch);
+                const isAndroid = /android/i.test(ua);
 
-        const isAndroid = /android/i.test(ua);
-        // Windows/Mac desktop fallback
+                let targetId = 'install-desktop';
+                if (isIOS) targetId = 'install-ios';
+                else if (isAndroid) targetId = 'install-android';
 
-        let targetId = 'install-desktop'; // Fallback
-
-        console.log("PWA Detect - UA:", ua, "Touch:", isTouch); // Debug
-
-        if (isIOS) targetId = 'install-ios';
-        else if (isAndroid) targetId = 'install-android';
-
-        // Hide all guides first (in case of re-init?)
-        document.querySelectorAll('.platform-guide').forEach(el => el.style.display = 'none');
-
-        // Show Target
-        const guide = document.getElementById(targetId);
-        if (guide) {
-            guide.style.display = 'block';
-            console.log("Showing Install Guide for:", targetId);
+                document.querySelectorAll('.platform-guide').forEach(el => el.style.display = 'none');
+                const guide = document.getElementById(targetId);
+                if (guide) guide.style.display = 'block';
+            });
         }
+
+        // Close Button Logic
+        const closeBtn = document.getElementById('btn-close-install');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // prevent bubbling
+                document.getElementById('pwa-install-modal').classList.remove('active');
+            });
+        }
+
+        // Auto-show removed per user request:
+        // document.getElementById('pwa-install-modal').classList.add('active');
     }
 
     setupEventListeners();
