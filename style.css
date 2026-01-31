@@ -1111,3 +1111,211 @@ select option {
     display: flex;
     flex-direction: column;
 }
+
+/* --- PWA INSTALL MODAL (Redesigned) --- */
+.full-screen-overlay {
+    z-index: 9999 !important;
+    background: rgba(15, 23, 42, 0.98) !important;
+    /* Almost solid */
+    backdrop-filter: blur(15px);
+    display: none;
+    /* JS toggles active */
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+
+.full-screen-overlay.active {
+    display: flex;
+    opacity: 1;
+}
+
+.install-content {
+    max-width: 700px !important;
+    width: 95%;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    text-align: center;
+    padding: 0 !important;
+}
+
+.install-header {
+    margin-bottom: 40px;
+}
+
+.app-icon-large {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 20px;
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+
+    0%,
+    20%,
+    50%,
+    80%,
+    100% {
+        transform: translateY(0);
+    }
+
+    40% {
+        transform: translateY(-10px);
+    }
+
+    60% {
+        transform: translateY(-5px);
+    }
+}
+
+.install-title {
+    font-size: 2.5rem;
+    font-weight: 800;
+    margin-bottom: 10px;
+    background: linear-gradient(135deg, #fff, #94a3b8);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.install-subtitle {
+    font-size: 1.2rem;
+    color: var(--text-muted);
+}
+
+/* Guide Container */
+.platform-guide {
+    background: var(--background-panel);
+    border-radius: 20px;
+    padding: 30px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+    animation: slideUp 0.5s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.platform-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 30px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 20px;
+}
+
+.icon-os {
+    font-size: 2rem;
+}
+
+.platform-header h3 {
+    font-size: 1.5rem;
+    color: white;
+    font-weight: 700;
+}
+
+/* Steps Grid */
+.steps-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+}
+
+.single-step {
+    grid-template-columns: 1fr 1fr;
+    /* For desktop simpler steps */
+}
+
+.step-card {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    padding: 20px 15px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    height: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.step-num {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--primary-color);
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 0.9rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.step-text {
+    font-size: 0.95rem;
+    color: #e2e8f0;
+    line-height: 1.4;
+    margin-bottom: 15px;
+    margin-top: 10px;
+}
+
+.step-text strong {
+    color: var(--secondary-color);
+}
+
+.step-icon {
+    font-size: 1.8rem;
+    color: var(--text-muted);
+}
+
+/* Refresh Hint */
+.refresh-hint-box {
+    margin-top: 40px;
+    padding: 15px;
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: 10px;
+    display: inline-block;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.refresh-hint-box p {
+    color: var(--success);
+    font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .steps-grid {
+        grid-template-columns: 1fr;
+        /* Stack on mobile */
+        gap: 25px;
+    }
+
+    .single-step {
+        grid-template-columns: 1fr;
+    }
+
+    .install-title {
+        font-size: 1.8rem;
+    }
+}

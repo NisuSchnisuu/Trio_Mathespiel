@@ -243,36 +243,99 @@
     <!-- PWA INSTALL MODAL -->
     <div id="pwa-install-modal" class="modal-overlay full-screen-overlay">
         <div class="modal-content install-content">
-            <h1 class="install-title">App Installation erforderlich</h1>
-            <p class="install-subtitle">Um Trio zu spielen, musst du die App installieren.</p>
+            <div class="install-header">
+                <span class="app-icon-large">✨</span>
+                <h1 class="install-title">Installation erforderlich</h1>
+                <p class="install-subtitle">Installiere <strong>TRIO</strong>, um das beste Spielerlebnis zu erhalten.
+                </p>
+            </div>
 
-            <div class="install-instructions">
+            <div id="install-instructions-container">
                 <!-- iOS -->
-                <div class="platform-block">
-                    <h3><span class="icon">🍎</span> iOS (Safari)</h3>
-                    <ol>
-                        <li>Tippe auf den <strong>Teilen</strong>-Button <span class="ios-share-icon"></span></li>
-                        <li>Wähle <strong>"Zum Home-Bildschirm"</strong></li>
-                        <li>Tippe auf <strong>"Hinzufügen"</strong></li>
-                    </ol>
+                <div id="install-ios" class="platform-guide" style="display: none;">
+                    <div class="platform-header">
+                        <span class="icon-os">🍎</span>
+                        <h3>Installation auf iPhone / iPad</h3>
+                    </div>
+                    <div class="steps-grid">
+                        <div class="step-card">
+                            <span class="step-num">1</span>
+                            <div class="step-text">Tippe unten (oder oben) auf den <strong>Teilen-Button</strong>.</div>
+                            <div class="step-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2">
+                                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                                    <polyline points="16 6 12 2 8 6" />
+                                    <line x1="12" y1="2" x2="12" y2="15" />
+                                </svg></div>
+                        </div>
+                        <div class="step-card">
+                            <span class="step-num">2</span>
+                            <div class="step-text">Scrolle nach unten und wähle <strong>"Zum Home-Bildschirm"</strong>.
+                            </div>
+                            <div class="step-icon">📱</div>
+                        </div>
+                        <div class="step-card">
+                            <span class="step-num">3</span>
+                            <div class="step-text">Tippe oben rechts auf <strong>"Hinzufügen"</strong>.</div>
+                            <div class="step-icon">➕</div>
+                        </div>
+                    </div>
                 </div>
+
                 <!-- Android -->
-                <div class="platform-block">
-                    <h3><span class="icon">🤖</span> Android (Chrome)</h3>
-                    <ol>
-                        <li>Tippe auf das <strong>Menü</strong> (3 Punkte)</li>
-                        <li>Wähle <strong>"App installieren"</strong> oder <strong>"Zum Startbildschirm"</strong></li>
-                    </ol>
+                <div id="install-android" class="platform-guide" style="display: none;">
+                    <div class="platform-header">
+                        <span class="icon-os">🤖</span>
+                        <h3>Installation auf Android</h3>
+                    </div>
+                    <div class="steps-grid">
+                        <div class="step-card">
+                            <span class="step-num">1</span>
+                            <div class="step-text">Tippe auf das <strong>Dreipunkt-Menü</strong> im Browser.</div>
+                            <div class="step-icon">⋮</div>
+                        </div>
+                        <div class="step-card">
+                            <span class="step-num">2</span>
+                            <div class="step-text">Wähle <strong>"App installieren"</strong> oder <strong>"Zum
+                                    Startbildschirm"</strong>.</div>
+                            <div class="step-icon">📲</div>
+                        </div>
+                        <div class="step-card">
+                            <span class="step-num">3</span>
+                            <div class="step-text">Bestätige die Installation im Pop-up.</div>
+                            <div class="step-icon">✅</div>
+                        </div>
+                    </div>
                 </div>
-                <!-- Windows -->
-                <div class="platform-block">
-                    <h3><span class="icon">💻</span> Windows (Chrome/Edge)</h3>
-                    <p>Klicke auf das <strong>Installieren-Icon</strong> <span class="chrome-install-icon">⊕</span> in
-                        der
-                        Adressleiste.</p>
+
+                <!-- Windows / Desktop -->
+                <div id="install-desktop" class="platform-guide" style="display: none;">
+                    <div class="platform-header">
+                        <span class="icon-os">💻</span>
+                        <h3>Installation auf PC / Mac</h3>
+                    </div>
+                    <div class="steps-grid single-step">
+                        <div class="step-card">
+                            <span class="step-num">1</span>
+                            <div class="step-text">
+                                Klicke auf das <strong>Installieren-Icon</strong> <span
+                                    class="chrome-install-icon">⊕</span>
+                                rechts in der Adressleiste des Browsers.
+                            </div>
+                        </div>
+                        <div class="step-card">
+                            <span class="step-num">2</span>
+                            <div class="step-text">
+                                Klicke im Dialog auf <strong>"Installieren"</strong>.
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <p class="refresh-hint">App installiert? Schließe diesen Tab und öffne die App!</p>
+
+            <div class="refresh-hint-box">
+                <p>App installiert? Schließe diesen Tab und öffne die <strong>Trio App</strong>!</p>
+            </div>
         </div>
     </div>
 
