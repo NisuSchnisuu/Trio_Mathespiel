@@ -1690,7 +1690,7 @@ function generateGridData(size) {
             // Parse string like "1-10" if needed, but usually we just want defaults or specific
             // If string, likely from bad save. Use defaults.
             // Actually, if string "extended", maybe max=20?
-            if (appState.numberRange === 'extended') max = 20;
+            if (appState.numberRange === 'extended') max = 19;
         }
     }
 
@@ -1821,13 +1821,41 @@ function renderPlayersList(players) {
     const list = players ? Object.values(players) : [];
     list.sort((a, b) => (b.score || 0) - (a.score || 0));
 
-    list.forEach(p => {
+    // Calculate Ranks (Dense ranking)
+    // 10, 8, 8, 5 -> Rank 1, 2, 2, 3
+    let currentRank = 1;
+    let lastScore = list.length > 0 ? (list[0].score || 0) : -1;
+
+    list.forEach((p, index) => {
+        const pScore = p.score || 0;
+        if (pScore < lastScore) {
+            currentRank++; // Move to next rank if score is lower
+            lastScore = pScore;
+        } else if (index > 0 && pScore === lastScore) {
+            // Same rank as previous, do nothing to currentRank
+        } else {
+            // First item, rank is 1
+        }
+
+        /* 
+           However, "Standard Competition Ranking" (1224) vs "Dense" (1223).
+           User: "2. platzierten... 3. platzierten".
+           Let's use Dense for visuals so both 2nd places get Silver.
+        */
+
+        let rankIcon = '';
+        if (currentRank === 1) rankIcon = '👑';
+        else if (currentRank === 2) rankIcon = '🥈';
+        else if (currentRank === 3) rankIcon = '🥉';
+
         const item = document.createElement('div');
         item.className = 'player-item';
+
+        // Host gets yellow border
         if (p.isHost) item.style.borderLeft = "3px solid var(--warning)";
 
         item.innerHTML = `
-            <span>${p.name} ${p.isHost ? '👑' : ''}</span>
+            <span>${p.name} ${rankIcon}</span>
             <span class="player-score">${p.score || 0}</span>
         `;
         container.appendChild(item);
