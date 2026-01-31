@@ -167,11 +167,26 @@ function init() {
     if (!isStandalone) {
         // Show Install Modal
         document.getElementById('pwa-install-modal').classList.add('active');
-        // Do NOT proceed with init?
-        // JS still runs, but view is blocked. That is fine.
-        // We can just return? No, initialization might be needed for PWA install prompt events event listeners?
-        // Actually, preventing further interaction is done by the modal covering everything (z-9999).
-        // So we just let the rest run background stuff.
+
+        // Detect OS for instructions
+        const ua = navigator.userAgent || navigator.vendor || window.opera;
+        const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+        const isAndroid = /android/i.test(ua);
+        const isWindows = /windows phone/i.test(ua) || /windows/i.test(ua);
+
+        let targetId = 'install-desktop'; // Fallback
+        if (isIOS) targetId = 'install-ios';
+        else if (isAndroid) targetId = 'install-android';
+
+        // Hide all guides first (in case of re-init?)
+        document.querySelectorAll('.platform-guide').forEach(el => el.style.display = 'none');
+
+        // Show Target
+        const guide = document.getElementById(targetId);
+        if (guide) {
+            guide.style.display = 'block';
+            console.log("Showing Install Guide for:", targetId);
+        }
     }
 
     setupEventListeners();
