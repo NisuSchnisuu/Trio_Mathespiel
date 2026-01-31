@@ -164,8 +164,16 @@ function setupEventListeners() {
     buttons.buzzer.addEventListener('click', handleBuzzerClick);
 
     // Back Button Listeners
-    if (buttons.lobbyBack) buttons.lobbyBack.addEventListener('click', handleGlobalBack);
-    if (buttons.gameBack) buttons.gameBack.addEventListener('click', handleGlobalBack);
+    // Re-select to ensure freshness
+    const lobbyBack = document.getElementById('btn-lobby-back');
+    if (lobbyBack) lobbyBack.addEventListener('click', handleGlobalBack);
+
+    const gameBack = document.getElementById('btn-game-back');
+    if (gameBack) gameBack.addEventListener('click', () => {
+        showConfirm("Spiel verlassen?", "Möchtest du das Spiel wirklich verlassen?", () => {
+            leaveGame();
+        });
+    });
 }
 
 function handleGlobalBack() {
@@ -344,9 +352,6 @@ function enterWaitingRoom() {
 
     elements.lobbyQR.innerHTML = `
         <img src="${qrUrl}" alt="Game QR Code" style="max-width:200px; width:100%; border:4px solid white; border-radius:8px;" />
-        <p style="font-size: 0.8rem; color: #64748b; margin-top: 10px; word-break: break-all; font-family: monospace;">
-            ${joinUrl}
-        </p>
     `;
 
     // Warn if on localhost
@@ -371,8 +376,10 @@ function enterWaitingRoom() {
 
     if (appState.isHost) {
         buttons.startGame.style.display = 'block';
+        document.getElementById('lobby-status-text').style.display = 'none';
     } else {
         buttons.startGame.style.display = 'none';
+        document.getElementById('lobby-status-text').style.display = 'block';
         document.getElementById('lobby-status-text').innerText = "Warte auf Host...";
     }
 
@@ -382,7 +389,9 @@ function enterWaitingRoom() {
         leaveBtn.id = 'btn-leave-lobby';
         leaveBtn.className = 'btn-leave';
         leaveBtn.innerText = 'Lobby verlassen';
-        leaveBtn.onclick = leaveGame;
+        leaveBtn.onclick = () => {
+            showConfirm("Lobby verlassen?", "Möchtest du die Lobby verlassen?", () => { leaveGame(); });
+        };
         elements.lobbyQR.parentNode.appendChild(leaveBtn);
         // Or append elsewhere? lobby-container seems best.
         // Actually let's put it at the bottom of the container
@@ -450,7 +459,18 @@ function subscribeToGame(gameId) {
     // 1. Status Check (Waiting -> Playing)
     gameRef.on('value', (snapshot) => {
         const data = snapshot.val();
-        if (!data) return;
+
+        // Host Disconnected / Game Ended
+        // Host Disconnected / Game Ended
+        if (!data) {
+            if (!appState.isHost) {
+                showModal("Spiel beendet", "Der Host hat das Spiel verlassen.", () => {
+                    clearSession(); // Prevents restoration loop
+                    location.reload();
+                }, true);
+            }
+            return;
+        }
 
         // Settings Sync
         if (data.settings) {
