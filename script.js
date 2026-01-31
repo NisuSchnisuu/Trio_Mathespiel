@@ -1199,7 +1199,6 @@ function populateModalButtons(preserveFormula = false) {
             b.classList.remove('used');
         }
     });
-    document.getElementById('btn-backspace').onclick = handleBackspace;
     document.getElementById('btn-clear').onclick = handleClear;
 }
 
@@ -1345,49 +1344,7 @@ function flashInvalidElement(el) {
     }, 400);
 }
 
-function handleBackspace() {
-    if (appState.buzzerOwner !== appState.playerId) return;
 
-    if (modalState.history && modalState.history.length > 0) {
-        const lastAction = modalState.history.pop();
-
-        // Restore Formula State
-        modalState.formula = lastAction.prevFormula;
-
-        // If it was a number, free the index
-        if (lastAction.type === 'num') {
-            modalState.usedIndices = modalState.usedIndices.filter(i => i !== lastAction.idx);
-
-            // Visual Update
-            // We need to re-scan all buttons to match usedIndices because 
-            // multiple buttons might be same number (though unlikely in this game logic, indices are unique)
-            // But strict unique index logic => just remove class from THAT index.
-            const btn = document.querySelector(`.num-btn[data-index="${lastAction.idx}"]`);
-            if (btn) btn.classList.remove('used');
-        } else if (lastAction.type === 'op') {
-            // If op was removed, re-enable button
-            if (lastAction.op && ['+', '-', '*', '/'].includes(lastAction.op)) {
-                const opBtn = document.querySelector(`.btn-calc.op[data-op="${lastAction.op}"]`);
-                if (opBtn) opBtn.classList.remove('used');
-            }
-        }
-    } else {
-        // Fallback if no history (shouldnt happen if logic consistent, but for safety)
-        if (modalState.formula.length > 0) {
-            modalState.formula = ''; // Safe fail: clear all if desync? 
-            // Or just do nothing. User wants block deletion. 
-            // If history empty but formula not, it's weird.
-            // Let's just reset if history lost.
-            modalState.formula = '';
-            modalState.usedIndices = [];
-            document.querySelectorAll('.num-btn').forEach(b => b.classList.remove('used'));
-            document.querySelectorAll('.btn-calc.op').forEach(b => b.classList.remove('used'));
-        }
-    }
-
-    updateRemoteFormula();
-    updateFormulaDisplay();
-}
 
 function handleClear() {
     if (appState.buzzerOwner !== appState.playerId) return;
@@ -1410,6 +1367,27 @@ function updateFormulaDisplay() {
 
 function submitSolution() {
     if (!modalState.formula) return;
+
+    // Profi Mode Validation: STRICT Parentheses Check
+    if (appState.difficulty === 'pro') {
+        const hasOpen = modalState.formula.includes('(');
+        const hasClose = modalState.formula.includes(')');
+
+        if (!hasOpen || !hasClose) {
+            // Flash Solve Button
+            const solveBtn = document.getElementById('btn-solve');
+            flashInvalidElement(solveBtn);
+
+            // Flash Parentheses Buttons
+            const openBtn = document.querySelector('.btn-calc.op[data-op="("]');
+            const closeBtn = document.querySelector('.btn-calc.op[data-op=")"]');
+            if (openBtn) flashInvalidElement(openBtn);
+            if (closeBtn) flashInvalidElement(closeBtn);
+
+            return;
+        }
+    }
+
     try { calculateFormula(modalState.formula); } catch (e) { showMessage('Fehler', "Ungültige Formel"); return; }
 
     const attempt = {
@@ -1552,6 +1530,20 @@ function validateAttempt(attempt, attemptKey) {
                     failReason = "Ungültige Struktur! Division muss vor Subtraktion erfolgen (oder (A/B) - C).";
                 }
             }
+        } else if (appState.difficulty === 'pro') {
+            // Profi: Must have ( AND ) AND (* OR /) AND (+ OR -)
+            const f = attempt.formula;
+            if (!f.includes('(') || !f.includes(')')) {
+                structureValid = false;
+                failReason = "Es müssen Klammern verwendet werden!";
+            } else {
+                const hasMultDiv = f.includes('*') || f.includes('/');
+                const hasPlusMinus = f.includes('+') || f.includes('-');
+                if (!hasMultDiv || !hasPlusMinus) {
+                    structureValid = false;
+                    failReason = "Es müssen Strich- UND Punktrechnung (mit Klammern) enthalten sein!";
+                }
+            }
         }
 
         if (Math.abs(result - attempt.target) < 0.001 && structureValid) valid = true;
@@ -1564,6 +1556,8 @@ function validateAttempt(attempt, attemptKey) {
         } else if (appState.difficulty === 'advanced') {
             if ((attempt.formula.match(/\//g) || []).length !== 1) failReason = "Es muss genau eine Geteilt-Rechnung enthalten sein!";
             else failReason = "Es muss genau eine Plus- oder Minus-Rechnung enthalten sein!";
+        } else if (appState.difficulty === 'pro') {
+            failReason = "Ungültige Struktur für Profi-Modus.";
         }
     }
 
@@ -1805,17 +1799,38 @@ function tryAdd(triplet, diff, addSol) {
             // (p0 / p1) - p2
             addSol(triplet, (p[0] / p[1]) - p[2]);
         });
-    }
-    else {
-        // Advanced / Pro: Full Permutations with +, -, *, /
+    } else {
+        // Profi: Full Permutations with +, -, *, /
+        // BUT strict filtering: Must use Mixed Operators (Point & Line)
         const ops = ['+', '-', '*', '/'];
         const perms = [[a, b, c], [a, c, b], [b, a, c], [b, c, a], [c, a, b], [c, b, a]];
         perms.forEach(p => {
             ops.forEach(o1 => ops.forEach(o2 => {
-                try {
-                    const res = eval(`${p[0]}${o1}${p[1]}${o2}${p[2]}`);
-                    addSol(triplet, res);
-                } catch (e) { }
+                // Filter: Must have (Point AND Line)
+                const hasPoint = (o1 === '*' || o1 === '/' || o2 === '*' || o2 === '/');
+                const hasLine = (o1 === '+' || o1 === '-' || o2 === '+' || o2 === '-');
+
+                if (hasPoint && hasLine) {
+                    try {
+                        // Standard eval precedence will work.
+                        // We assume user can add parens to make it work.
+                        // e.g. A + B * C -> 14. User types A + (B * C) or (A + B) * C (different result).
+                        // We need to support BOTH precedence structures for the target.
+                        // 1. (A o1 B) o2 C
+                        // 2. A o1 (B o2 C)
+                        // Actually, straight eval covers standard precedence.
+                        // But (A+B)*C requires parens.
+
+                        // Structure 1: (p0 o1 p1) o2 p2
+                        const res1 = eval(`(${p[0]}${o1}${p[1]})${o2}${p[2]}`);
+                        addSol(triplet, res1);
+
+                        // Structure 2: p0 o1 (p1 o2 p2)
+                        const res2 = eval(`${p[0]}${o1}(${p[1]}${o2}${p[2]})`);
+                        addSol(triplet, res2);
+
+                    } catch (e) { }
+                }
             }));
         });
     }
