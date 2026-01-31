@@ -238,18 +238,8 @@ function init() {
         // Pre-fill
         inputs.joinCode.value = joinCode;
 
-        // Quick Join UI Mode
-        const createContainer = document.getElementById('create-container');
-        const joinDivider = document.querySelector('.join-section p'); // "ODER"
-        const joinInput = document.getElementById('join-code');
-
-        if (createContainer) createContainer.style.display = 'none';
-        if (joinDivider) joinDivider.style.display = 'none';
-        if (joinInput) joinInput.style.display = 'none';
-
-        // Add specific layout class
-        const lobbyContainer = document.querySelector('.lobby-container');
-        if (lobbyContainer) lobbyContainer.classList.add('quick-join-mode');
+        // Enable Quick Join Mode
+        enableQuickJoinMode();
 
         // Optional: Focus name if empty, else ready
         if (!inputs.playerName.value) {
@@ -262,6 +252,21 @@ function init() {
         // Try Restore
         checkSession();
     }
+}
+
+function enableQuickJoinMode() {
+    // Quick Join UI Mode
+    const createContainer = document.getElementById('create-container');
+    const joinDivider = document.querySelector('.join-section p'); // "ODER"
+    const joinInput = document.getElementById('join-code');
+
+    if (createContainer) createContainer.style.display = 'none';
+    if (joinDivider) joinDivider.style.display = 'none';
+    if (joinInput) joinInput.style.display = 'none';
+
+    // Add specific layout class
+    const lobbyContainer = document.querySelector('.lobby-container');
+    if (lobbyContainer) lobbyContainer.classList.add('quick-join-mode');
 }
 
 // --- Event Listeners ---
@@ -843,7 +848,15 @@ function setupQRScanner() {
                 }
 
                 // Request Permission explicitly first
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                const constraints = {
+                    video: {
+                        facingMode: "environment",
+                        zoom: true, // Request zoom capability
+                        width: { ideal: 1920 }, // Higher res often helps with zoom availability
+                        height: { ideal: 1080 }
+                    }
+                };
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
                 // If successful, stop this stream immediately to release camera for the library
                 stream.getTracks().forEach(track => track.stop());
@@ -874,49 +887,71 @@ function setupQRScanner() {
 
             const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
-            // Prefer back camera
-            html5QrcodeScanner.start({ facingMode: "environment" }, config, (decodedText, decodedResult) => {
-                // SUCCESS
-                console.log("Scan success:", decodedText);
+            // Camera Config with Zoom hint
+            // Note: Html5QrcodeScanner 'start' method takes config. 
+            // We can try to pass advanced constraints if the library supports passing MediaTrackConstraints.
+            // Documentation says: start(cameraIdOrConfig, configuration, qrCodeSuccessCallback...)
+            // cameraIdOrConfig can be { facingMode: "environment" } OR { deviceId: ... }
+            // To use zoom, we need 'advanced' constraints.
 
-                // Handle URL or Code
-                let code = decodedText;
+            const cameraConfig = {
+                facingMode: "environment"
+            };
 
-                // If URL, extract 'join' param
-                try {
-                    const url = new URL(decodedText);
-                    const joinParam = url.searchParams.get('join');
-                    if (joinParam) code = joinParam;
-                } catch (e) {
-                    // Not a URL, use raw text
-                }
+            // HTML5-QRCode doesn't explicitly document passing 'advanced' constraints in the simple config object easily,
+            // but let's try standard getUserMedia constraint format.
+            // If that fails, we rely on the library's default.
+            // NOTE: The library creates its own stream. 
+            // We can try to force high res which often equals "less wide angle" on some phones, effectively zooming.
 
-                if (code && code.length >= 4) { // Basic validation
-                    // Stop scanner
-                    html5QrcodeScanner.stop().then(() => {
-                        qrModal.classList.remove('active');
+            html5QrcodeScanner.start(
+                cameraConfig,
+                config,
+                (decodedText, decodedResult) => {
+                    // SUCCESS
+                    console.log("Scan success:", decodedText);
 
-                        // Fill input
-                        inputs.joinCode.value = code;
+                    // Handle URL or Code
+                    let code = decodedText;
 
-                        // Auto-Join if name exists
-                        if (inputs.playerName.value.trim()) {
-                            joinGame(code, inputs.playerName.value.trim());
-                        } else {
-                            // Focus name input
-                            inputs.playerName.focus();
-                        }
-                    }).catch(err => console.error(err));
-                }
+                    // If URL, extract 'join' param
+                    try {
+                        const url = new URL(decodedText);
+                        const joinParam = url.searchParams.get('join');
+                        if (joinParam) code = joinParam;
+                    } catch (e) {
+                        // Not a URL, use raw text
+                    }
 
-            }, (errorMessage) => {
-                // parse error, ignore
-            }).catch(err => {
-                console.error("Error starting scanner", err);
-                // This catch might still be hit if something else is wrong
-                alert("Fehler beim Starten des Scanners: " + err);
-                qrModal.classList.remove('active');
-            });
+                    if (code && code.length >= 4) { // Basic validation
+                        // Stop scanner
+                        html5QrcodeScanner.stop().then(() => {
+                            qrModal.classList.remove('active');
+
+                            // Fill input
+                            inputs.joinCode.value = code;
+
+                            // SWITCH TO QUICK JOIN MODE
+                            enableQuickJoinMode();
+
+                            // Auto-Join if name exists
+                            if (inputs.playerName.value.trim()) {
+                                joinGame(code, inputs.playerName.value.trim());
+                            } else {
+                                // Focus name input
+                                inputs.playerName.focus();
+                            }
+                        }).catch(err => console.error(err));
+                    }
+
+                }, (errorMessage) => {
+                    // parse error, ignore
+                }).catch(err => {
+                    console.error("Error starting scanner", err);
+                    // This catch might still be hit if something else is wrong
+                    alert("Fehler beim Starten des Scanners: " + err);
+                    qrModal.classList.remove('active');
+                });
         });
     }
 
