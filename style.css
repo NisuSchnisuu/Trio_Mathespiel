@@ -1319,3 +1319,201 @@ select option {
         font-size: 1.8rem;
     }
 }
+
+/* --- MOBILE & RESPONSIVE FIXES --- */
+
+/* 1. PWA Modal Overflow Fix */
+@media (max-height: 800px) {
+    .install-content {
+        padding: 20px !important;
+        max-height: 85vh;
+        /* Prevent going off screen */
+        overflow-y: auto;
+        /* Scrollable internal content */
+    }
+
+    .install-header {
+        margin-bottom: 20px;
+    }
+
+    .app-icon-large {
+        font-size: 2rem;
+        margin-bottom: 10px;
+    }
+
+    .install-title {
+        font-size: 1.8rem;
+    }
+}
+
+/* 2. Global Mobile Scaling */
+@media (max-width: 768px) {
+
+    /* PWA Modal Mobile */
+    .steps-grid {
+        grid-template-columns: 1fr;
+        /* Stack cards */
+    }
+
+    .install-content {
+        width: 100%;
+        max-width: 100% !important;
+        border-radius: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        margin: 0;
+    }
+
+    /* GLOBAL APP SCALING */
+    :root {
+        --mobile-scale: 0.85;
+        /* Scale down everything slightly */
+    }
+
+    body {
+        font-size: 14px;
+        /* Base size reduction */
+    }
+
+    /* Make Grid Smaller to fit */
+    .game-grid-container {
+        padding: 5px;
+        /* Minimal padding */
+    }
+
+    .grid-cell {
+        font-size: 1.1rem;
+        /* Smaller numbers */
+        border-radius: 4px;
+    }
+
+    /* Dashboard Elements */
+    .target-number {
+        font-size: 2.5rem;
+    }
+
+    .buzzer-container button {
+        padding: 15px;
+        font-size: 1.5rem;
+    }
+
+    /* Ensure Game View doesn't scroll if possible */
+    #game-view {
+        padding: 10px;
+        gap: 10px;
+        height: 100vh;
+        overflow: hidden;
+    }
+}
+
+/* 3. ROTATE DEVICE OVERLAY */
+#rotate-overlay {
+    display: none;
+    z-index: 10000 !important;
+    /* Above everything */
+    background: #0f172a !important;
+}
+
+@keyframes spin-slow {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Show Rotate Overlay on Portrait Mobile */
+@media (orientation: portrait) and (max-width: 1024px) {
+    #rotate-overlay {
+        display: flex !important;
+    }
+
+    /* Hide other modals logic if needed, but z-index handles it */
+}
+
+/* 4. MOBILE LANDSCAPE OPTIMIZATION */
+@media (orientation: landscape) and (max-height: 600px) {
+
+    /* Scale down UI for short screens */
+    :root {
+        --mobile-scale: 0.7;
+        /* Smaller scale */
+    }
+
+    body {
+        font-size: 12px;
+        padding: 0;
+        /* Minimize padding */
+    }
+
+    #game-view {
+        flex-direction: row !important;
+        /* Force side-by-side */
+        padding: 4px !important;
+        gap: 8px !important;
+        height: 100dvh;
+        overflow: hidden;
+    }
+
+    /* Grid Container */
+    .game-grid-container {
+        flex: 1;
+        /* Take available space */
+        height: 100%;
+        /* Max height */
+        padding: 4px;
+    }
+
+    .game-grid {
+        height: 100%;
+        width: auto;
+        /* Allow width to shrink */
+        aspect-ratio: 1/1;
+        margin: 0 auto;
+    }
+
+    .grid-cell {
+        font-size: 1rem;
+    }
+
+    /* Dashboard */
+    .game-dashboard {
+        flex: 0 0 160px;
+        /* Fixed TINY width */
+        width: 160px;
+        gap: 5px;
+        padding-right: 4px;
+    }
+
+    .target-number {
+        font-size: 1.8rem;
+    }
+
+    .target-display {
+        padding: 6px;
+    }
+
+    .player-list h3 {
+        font-size: 0.9rem;
+        margin-bottom: 4px;
+    }
+
+    .player-item {
+        padding: 4px;
+        font-size: 0.8rem;
+    }
+
+    .buzzer-container button {
+        padding: 8px;
+        font-size: 1rem;
+    }
+
+    /* Hide non-essential top bar in game if exists */
+    .difficulty-display {
+        font-size: 0.7rem;
+        padding: 2px 4px;
+    }
+}

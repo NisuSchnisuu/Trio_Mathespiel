@@ -48,6 +48,11 @@
             <div class="lobby-intro">
                 <h1 class="game-title">TRIO</h1>
 
+                <button id="btn-trigger-install" class="btn-secondary"
+                    style="display: none; margin: 0 auto 20px auto; font-size: 0.9rem; padding: 6px 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">
+                    📲 App installieren
+                </button>
+
                 <div class="input-group">
                     <label for="player-name">Dein Spielername</label>
                     <input type="text" id="player-name" placeholder="z.B. MatheGenie" autocomplete="off">
@@ -253,12 +258,15 @@
 
     <!-- PWA INSTALL MODAL -->
     <div id="pwa-install-modal" class="modal-overlay full-screen-overlay">
-        <div class="modal-content install-content">
+        <div class="modal-content install-content" style="position: relative;">
+            <button id="btn-close-install" class="btn-icon"
+                style="position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.1); width: 32px; height: 32px; border-radius: 50%; border: none; color: white; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
+
             <div class="install-header">
                 <span class="app-icon-large">✨</span>
-                <h1 class="install-title">Installation erforderlich</h1>
-                <p class="install-subtitle">Installiere <strong>TRIO</strong>, um das beste Spielerlebnis zu erhalten.
-                </p>
+                <h1 class="install-title">App installieren</h1>
+                <p class="install-subtitle">Installiere <strong>TRIO</strong> für das beste Spielerlebnis (Vollbild,
+                    Offline-Support).</p>
             </div>
 
             <div id="install-instructions-container">
@@ -345,7 +353,16 @@
             </div>
 
             <div class="refresh-hint-box">
-                <p>App installiert? Schließe diesen Tab und öffne die <strong>Trio App</strong>!</p>
+                <p>App bereits installiert?</p>
+                <button id="btn-open-app-intent" class="btn-primary"
+                    style="margin-top: 10px; background: rgba(16, 185, 129, 0.2); border: 1px solid var(--success); color: var(--success); width: auto; padding: 8px 16px;">
+                    App öffnen ↗
+                </button>
+                <script>
+                    document.getElementById('btn-open-app-intent').addEventListener('click', () => {
+                        window.location.reload();
+                    });
+                </script>
             </div>
         </div>
     </div>
