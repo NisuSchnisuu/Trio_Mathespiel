@@ -25,8 +25,8 @@
     <!-- PWA Manifest & Meta -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0f172a">
-    <link rel="apple-touch-icon" href="icon-192.png">
-    <link rel="icon" type="image/png" href="icon-192.png">
+    <link rel="apple-touch-icon" href="assets/Trio-logo-192x192.png">
+    <link rel="icon" type="image/png" href="assets/Trio-logo-192x192.png">
 
     <!-- Register Service Worker -->
     <script>
@@ -168,9 +168,13 @@
 
         <!-- Right: Dashboard -->
         <div class="game-dashboard">
-            <button id="btn-game-back" class="btn-primary"
-                style="align-self: flex-end; padding: 8px 16px; margin-bottom: 15px; font-size: 0.9rem; background: var(--danger); border-color: var(--danger);">Spiel
-                verlassen</button>
+            <div style="align-self: flex-end; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <span id="difficulty-display"
+                    style="background: rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 6px; font-size: 0.8rem; color: #94a3b8;">Normal</span>
+                <button id="btn-game-back" class="btn-primary"
+                    style="padding: 8px 16px; font-size: 0.9rem; background: var(--danger); border-color: var(--danger);">Spiel
+                    verlassen</button>
+            </div>
             <div class="target-display" style="position: relative;">
                 <div class="target-label">Zielzahl</div>
                 <div class="target-number" id="target-number">42</div>
@@ -225,8 +229,8 @@
             <div class="operator-pad">
                 <button class="btn-calc op" data-op="+">+</button>
                 <button class="btn-calc op" data-op="-">-</button>
-                <button class="btn-calc op" data-op="*">×</button>
-                <button class="btn-calc op" data-op="/">÷</button>
+                <button class="btn-calc op" data-op="*">·</button>
+                <button class="btn-calc op" data-op="/">:</button>
                 <button class="btn-calc op" data-op="(">(</button>
                 <button class="btn-calc op" data-op=")">)</button>
                 <button class="btn-calc action" id="btn-backspace">⌫</button>

@@ -488,8 +488,8 @@ function startGameAction() {
     if (!appState.isHost) return;
 
     // Generate Grid
-    generateGrid(appState.gridSize);
-    const solutions = findSolutions(appState.gridData, appState.gridSize, appState.difficulty);
+    // Generate Grid
+    const { grid, solutions } = generateGridData(appState.gridSize);
 
     if (solutions.length === 0) {
         console.warn("Retrying gen...");
@@ -501,13 +501,15 @@ function startGameAction() {
     appState.target = randomSol.result;
     appState.currSolutions = solutions;
 
-    console.log("HOST: Starting action, setting target:", appState.target);
-
-    // Update DB -> Triggers start for everyone
-    db.ref(`games/${appState.gameId}`).update({
-        grid: appState.gridData,
+    const gameId = `games/${appState.gameId}`;
+    db.ref(gameId).update({
+        grid: grid,
         target: appState.target,
-        state: 'playing'
+        state: 'playing',
+        solutions: null,
+        currentAttempt: null,
+        buzzerOwner: null,
+        buzzerTimestamp: null
     }).then(() => console.log("HOST: DB Update Success"))
         .catch(e => console.error("HOST: DB Update Failed", e));
 }
@@ -539,6 +541,20 @@ function subscribeToGame(gameId) {
             appState.gridSize = data.settings.gridSize;
             appState.difficulty = data.settings.difficulty;
             if (data.settings.winningScore) appState.winningScore = data.settings.winningScore;
+
+            // Update difficulty badge
+            const diffEl = document.getElementById('difficulty-display');
+            if (diffEl) {
+                const map = { normal: 'Normal', advanced: 'Fortgeschritten', pro: 'Profi' };
+                diffEl.innerText = map[appState.difficulty] || appState.difficulty;
+            }
+
+            // Refresh modal if active (e.g. strict mode buttons)
+            // If difficulty changed (or loaded late), we need to update visibility of buttons
+            const modal = document.getElementById('calc-modal');
+            if (modal && modal.classList.contains('active')) {
+                populateModalButtons(true);
+            }
         }
 
         let forceRender = false;
@@ -677,16 +693,21 @@ function handleResultSync(res) {
 
     let title, msg;
     if (res.correct) {
-        title = "KORREKT! 🎉";
-        if (isMe) msg = "Super! Du hast richtig gerechnet (+1 Punkt).";
-        else msg = `Mist! ${pName} hat richtig gerechnet (${res.formula} = ${res.result}).`;
+        title = "RICHTIG! 🎉";
+        msg = `+${res.score} Punkte für ${res.playerName}!`;
+        playSound('success');
+        startConfetti();
+        if (isMe) {
+            // My successful attempt
+        }
     } else {
         title = "FALSCH! ❌";
-        if (isMe) msg = "Das war leider falsch! Du bist für 20s gesperrt.";
-        else msg = `Puh! ${pName} hat falsch gerechnet. Chance für euch!`;
-    }
+        if (isMe) msg = res.reason || "Das war leider falsch! Du bist für 20s gesperrt.";
+        else msg = `${res.playerName} hat falsch gerechnet (${res.formula}).`; // Inform others
+        playSound('fail');
 
-    // Auto-close after 3s
+        // ...
+    } // Auto-close after 3s
     showModal(title, msg, null, true, "OK");
     setTimeout(() => {
         const m = document.getElementById('app-modal');
@@ -1076,6 +1097,7 @@ function populateModalButtons(preserveFormula = false) {
     if (!preserveFormula) {
         modalState.formula = '';
         modalState.usedIndices = [];
+        modalState.history = []; // Clear history
     }
     // If preserving, we keep formula but we might need to recalc usedIndices?
     // Actually formula string doesn't tell us used indicies easily unless we parse.
@@ -1109,6 +1131,23 @@ function populateModalButtons(preserveFormula = false) {
     document.getElementById('btn-solve').onclick = submitSolution;
     document.querySelectorAll('.btn-calc.op').forEach(b => {
         b.onclick = () => handleOpClick(b.dataset.op, b);
+
+        // Difficulty Check for Visibility
+        // Fallback: If appState.difficulty is null (reload race condition), check DOM or default to normal?
+        let currentDiff = appState.difficulty;
+        if (!currentDiff && inputs.difficulty) {
+            currentDiff = inputs.difficulty.value || 'normal';
+        }
+
+        if (currentDiff === 'normal') {
+            if (b.dataset.op === '/' || b.dataset.op === '(' || b.dataset.op === ')') {
+                b.style.display = 'none';
+            } else {
+                b.style.display = '';
+            }
+        } else {
+            b.style.display = '';
+        }
 
         // Restore used class for operators
         if (['+', '-', '*', '/'].includes(b.dataset.op) && modalState.formula.includes(b.dataset.op)) {
@@ -1168,7 +1207,10 @@ function handleNumClick(num, idx, btn) {
     // So if the last inputs was a 'num' type in history, prevent.
     if (modalState.history && modalState.history.length > 0) {
         const last = modalState.history[modalState.history.length - 1];
-        if (last.type === 'num') return; // Block consecutive numbers
+        if (last.type === 'num') {
+            if (btn) flashInvalidElement(btn);
+            return; // Block consecutive numbers
+        }
     }
 
     if (!modalState.history) modalState.history = [];
@@ -1185,13 +1227,58 @@ function handleNumClick(num, idx, btn) {
 function handleOpClick(op, btn) {
     if (appState.buzzerOwner !== appState.playerId) return;
 
+    const prev = modalState.formula;
+
+    // RULE: Start with Number (or '(' if visible/allowed, but we treat '(' as op here)
+    // Actually, user said: "als erstes immer ein Zahl angeklickt werden muss". 
+    // This implies even '(' is not allowed first? Or maybe just no operators like +, -, *, /.
+    // If we hide parens in normal, fine. In advanced, maybe ( is allowed.
+    // But let's check history length.
+    if (!modalState.history || modalState.history.length === 0) {
+        // If first input, MUST be a number?
+        // Exception: '(' is okay if not normal mode?
+        // User said: "man nie 2 operationszeichen (ausser klammern) nacheinander in die Rechnung einfügen kann."
+        // And "als erstes immer ein Zahl". This is strong.
+        // Let's enforce "Start with Number OR (" if strictly speaking. But in Normal mode, only Numbers visible.
+        // In Normal Mode, start with Number.
+        // If I click '+' first -> FLASH.
+        if (op !== '(') {
+            if (btn) flashInvalidElement(btn);
+            return;
+        }
+    }
+
+    // RULE: Normal Mode - Max 1 +/-
+    // "Es erzwingt nicht...". Ensuring UI blocks second + or -.
+    if (appState.difficulty === 'normal' && ['+', '-'].includes(op)) {
+        if (modalState.formula.includes('+') || modalState.formula.includes('-')) {
+            if (btn) flashInvalidElement(btn);
+            return;
+        }
+    }
+
     // Single use restriction for operators (except parens)
     if (['+', '-', '*', '/'].includes(op) && modalState.formula.includes(op)) {
+        if (btn) flashInvalidElement(btn);
         return; // Already used
     }
 
+    // RULE: No 2 operators in a row (except parens)
+    if (modalState.history && modalState.history.length > 0) {
+        const last = modalState.history[modalState.history.length - 1];
+        if (last.type === 'op' && ['+', '-', '*', '/'].includes(last.op) && ['+', '-', '*', '/'].includes(op)) {
+            // "ausser klammern". 
+            // So + - is bad. + ( is OK? ) + is OK?
+            // User says "ausser klammern". 
+            // If I type "2 + -". Bad.
+            // If I type "2 * (". OK.
+            // If I type "( - ". OK (if allowed start).
+            if (btn) flashInvalidElement(btn);
+            return;
+        }
+    }
+
     // History
-    const prev = modalState.formula;
     if (!modalState.history) modalState.history = [];
     modalState.history.push({ type: 'op', prevFormula: prev, op: op });
 
@@ -1204,6 +1291,15 @@ function handleOpClick(op, btn) {
 
     updateRemoteFormula();
     updateFormulaDisplay();
+}
+
+function flashInvalidElement(el) {
+    el.style.border = "2px solid red";
+    el.style.animation = "shake 0.3s";
+    setTimeout(() => {
+        el.style.border = "";
+        el.style.animation = "";
+    }, 400);
 }
 
 function handleBackspace() {
@@ -1262,7 +1358,11 @@ function handleClear() {
     updateFormulaDisplay();
 }
 
-function updateFormulaDisplay() { document.getElementById('formula-display').innerText = modalState.formula; }
+function updateFormulaDisplay() {
+    // Replace * with · and / with : for display
+    const displayStr = modalState.formula.replace(/\*/g, '·').replace(/\//g, ':');
+    document.getElementById('formula-display').innerText = displayStr;
+}
 
 
 function submitSolution() {
@@ -1271,6 +1371,7 @@ function submitSolution() {
 
     const attempt = {
         playerId: appState.playerId,
+        playerName: appState.selfName || 'Spieler',
         indices: appState.selectedCells,
         formula: modalState.formula,
         target: appState.target
@@ -1302,15 +1403,102 @@ function attachHostLogic(gameId) {
 // Modified: We call this if appState.isHost inside subscribe or create
 // Let's call it in subscribe loop if isHost and not attached
 
+function calculateScore(attempt) {
+    // Basic score is 1 point per solution
+    return 1;
+}
+
 function validateAttempt(attempt, attemptKey) {
     const gameRef = db.ref(`games/${appState.gameId}`);
     let valid = false;
+    let structureValid = true;
+    let failReason = null;
     let result = null;
 
     try {
         result = calculateFormula(attempt.formula);
-        if (Math.abs(result - attempt.target) < 0.001) valid = true;
+
+        // Special Validation for Normal Mode
+        console.log("Validating Attempt. Difficulty:", appState.difficulty);
+        if (appState.difficulty === 'normal') {
+            // Check for valid structure: Exact one * and one +/-
+            const f = attempt.formula;
+            const countMult = (f.match(/\*/g) || []).length;
+            const countPlus = (f.match(/\+/g) || []).length;
+            const countMinus = (f.match(/-/g) || []).length;
+
+            if (countMult !== 1) structureValid = false;
+            if (countPlus + countMinus !== 1) structureValid = false;
+
+            // Structure Check: A*B+C, A*B-C, C+A*B
+            // The prompt says "Structure is given: (A*B) +/- C". 
+            // In linear input without parens (since parens hidden):
+            // We allow: A*B+C, A*B-C, C+A*B.
+            // We disallow: -C+A*B (leading sign), A+B+C (already filtered by op counts), etc.
+
+            // Regex to match "Start with Mult" OR "End with Mult"
+            // Simple Pattern: term * term +/- term   OR   term +/- term * term
+            // Terms are numbers.
+            // Since we know we have exactly one * and one +/-:
+            // Valid forms:
+            // N * N + N
+            // N * N - N
+            // N + N * N
+            // N - N * N (allowed? "C - A * B" -> 10 - 2*3 = 4.  (A*B)+/-C allows subtraction FROM C? "Zwei davon multiplizieren und die dritte addieren oder subtrahieren" -> (A*B) - C or (A*B) + C. 
+            // The prompt says: "(Zahl A · Zahl B) ± Zahl C". This usually implies the term (A*B) is the primary unit.
+            // (A*B) - C is clear. 4*5 - 2 = 18.
+            // (A*B) + C is clear. 4*5 + 2 = 22.
+            // What about C - (A*B)? "20 - 4*2".  (A*B) is being subtracted.
+            // Prompt says: "Zwischenergebnis und dritte Zahl verrechnen".
+            // "Zwei davon multiplizieren und die dritte addieren oder subtrahieren."
+            // This phrasing "multiply two, and ADD OR SUBTRACT the third". 
+            // Grammatically: Result = (A*B) +/- C. 
+            // Does not explicitly allow C - (A*B). 
+            // Let's STICK to the requested formula: (A*B) +/- C.
+            // So allowed: A*B+C, C+A*B, A*B-C.
+
+            // Checking logic:
+            // 1. Is there a leading minus? (Disallow)
+            if (f.trim().startsWith('-')) structureValid = false;
+
+            // 2. Locate the minus.
+            // If minus exists:
+            // Valid: "N*N - N".  Invalid: "N - N*N".
+            // "4*5-2". Minus index > Multiply index? Yes.
+            // "2-4*5". Minus index < Multiply index.
+            if (countMinus === 1) {
+                const idxMinus = f.indexOf('-');
+                const idxMult = f.indexOf('*');
+                if (idxMinus < idxMult) {
+                    // This is C - A*B (minus comes before mult). Reject.
+                    // Exception: A * B - C -> mult before minus. OK.
+                    structureValid = false;
+                    failReason = "Ungültige Struktur! Multiplikation muss vor Subtraktion erfolgen (oder A*B - C).";
+                }
+            }
+        }
+
+        if (Math.abs(result - attempt.target) < 0.001 && structureValid) valid = true;
     } catch (e) { }
+
+    if (!structureValid && !failReason) {
+        if ((attempt.formula.match(/\*/g) || []).length !== 1) failReason = "Es muss genau eine Mal-Rechnung enthalten sein!";
+        else failReason = "Es muss genau eine Plus- oder Minus-Rechnung enthalten sein!";
+    }
+
+    const resultData = {
+        correct: valid,
+        score: valid ? calculateScore(attempt) : 0,
+        playerId: attempt.playerId,
+        playerName: attempt.playerName || 'Unbekannt',
+        target: attempt.target,
+        formula: attempt.formula,
+        result: result,
+        timestamp: firebase.database.ServerValue.TIMESTAMP,
+        reason: valid ? null : (failReason || "Das Ergebnis ist leider falsch.")
+    };
+
+    // ... rest of function ...
 
     if (valid) {
         gameRef.child(`players/${attempt.playerId}/score`).transaction(score => {
@@ -1338,13 +1526,25 @@ function validateAttempt(attempt, attemptKey) {
     }
 
     // Result Feedback
+    // Result Feedback
+    // resultData is already defined above with 'reason'.
+    // We just need to ensure properties match or update the reference.
+    // The previous definition:
+    /*
     const resultData = {
         correct: valid,
+        score: valid ? calculateScore(attempt) : 0,
         playerId: attempt.playerId,
-        result: result,
+        playerName: attempt.playerName,
+        target: attempt.target,
         formula: attempt.formula,
-        timestamp: firebase.database.ServerValue.TIMESTAMP
+        reason: valid ? null : (failReason || "Das Ergebnis ist leider falsch.")
     };
+    */
+    // The duplicate below (lines 1495-1501) adds "result: result" and "timestamp".
+    // We should merge them or just use the first one and add missing props.
+    // Let's modify the first one to include result/timestamp and remove this block.
+
     gameRef.child('status/result').set(resultData);
 
     db.ref(`games/${appState.gameId}/attempts/${attemptKey}`).remove();
@@ -1428,32 +1628,53 @@ function checkVetoThreshold(vetoMap, totalPlayers) {
     if (Object.keys(vetoMap).length > totalPlayers * 0.5) generateNewTarget();
 }
 
-function generateGrid(size) {
+function generateGridData(size) {
     const totalCells = size * size;
-    // Range Settings
-    const isExtended = appState.numberRange === 'extended';
-    const maxNum = isExtended ? 20 : 9;
+    let max = 9;
+    let min = 1;
 
-    // Generate Grid
-    const newGrid = [];
-    for (let i = 0; i < size * size; i++) {
-        // Random 1-9 or 1-20
-        newGrid.push(Math.floor(Math.random() * maxNum) + 1);
+    if (appState.numberRange) {
+        // Range might be object {min, max} or string "1-10"?
+        // createGame sets it as string value from DOM? NO, createGame sets it as string "1-10".
+        // But appState expects object?
+        // Let's check init state: numberRange: { min: 1, max: 9 }.
+        // If data.settings override it with string, that's the bug logic.
+        // But here we need to be safe.
+        if (typeof appState.numberRange === 'object') {
+            max = appState.numberRange.max || 9;
+            min = appState.numberRange.min || 1;
+        } else if (typeof appState.numberRange === 'string') {
+            // Parse string like "1-10" if needed, but usually we just want defaults or specific
+            // If string, likely from bad save. Use defaults.
+            // Actually, if string "extended", maybe max=20?
+            if (appState.numberRange === 'extended') max = 20;
+        }
     }
-    appState.gridData = newGrid;
 
-    // Adjust difficulty maxTarget
-    // Base: 50, Extended: 100
+    // Adjust for difficulties in extended
+    const isExtended = (size === 5);
     const maxTarget = isExtended ? 100 : 50;
 
-    // Find Solutions
-    // We pass maxTarget to findSolutions to filter results? 
-    // Or just filter AFTER.
-    appState.currSolutions = findSolutions(newGrid, size, appState.difficulty, maxTarget);
+    // Normal Mode: Keep numbers smaller (1-10 or 1-12)
+    if (appState.difficulty === 'normal') {
+        max = 10;
+        min = 1;
+    }
+
+    const newGrid = [];
+    for (let i = 0; i < size * size; i++) {
+        let num = Math.floor(Math.random() * (max - min + 1)) + min;
+        newGrid.push(num);
+    }
+
+    const solutions = findSolutions(newGrid, size, appState.difficulty, maxTarget);
+    return { grid: newGrid, solutions };
 }
 
 function getNumberColor(num) {
-    const hue = (num * (360 / 20)) % 360;
+    // Use Golden Angle (approx 137.5 degrees) to maximize contrast between sequential numbers
+    // Base Hue shift helps avoid too many reds/pinks if starting at 0
+    const hue = (num * 137.508) % 360;
     return `hsl(${hue}, 70%, 50%)`;
 }
 
@@ -1498,9 +1719,17 @@ function findSolutions(grid, size, difficulty, maxTarget = 50) {
 function tryAdd(triplet, diff, addSol) {
     const [a, b, c] = triplet;
     if (diff === 'normal') {
-        // Normal: a * b +/- c (Classic Trio)
-        addSol(triplet, a * b + c);
-        addSol(triplet, a * b - c);
+        // Normal: (A * B) +/- C (Target structure, but we try permutations because user picks 3 numbers)
+        // User selects 3 numbers. We need to see if ANY combination of them fits (A*B)+/-C
+        // Permutations: [a,b,c], [a,c,b], [b,a,c], ...
+        const perms = [[a, b, c], [a, c, b], [b, a, c], [b, c, a], [c, a, b], [c, b, a]];
+
+        perms.forEach(p => {
+            // (p0 * p1) + p2
+            addSol(triplet, (p[0] * p[1]) + p[2]);
+            // (p0 * p1) - p2
+            addSol(triplet, (p[0] * p[1]) - p[2]);
+        });
     }
     else {
         // Advanced / Pro: Full Permutations with +, -, *, /
@@ -1585,6 +1814,18 @@ function renderGrid() {
 }
 
 // Start App
+// Sound Effect Stub
+function playSound(type) {
+    // console.log("Playing sound:", type);
+    // Placeholder for actual sound logic
+    // e.g. new Audio('assets/sounds/' + type + '.mp3').play();
+}
+
+function startConfetti() {
+    // console.log("Confetti!");
+    // Placeholder for confetti animation
+}
+
 document.addEventListener('DOMContentLoaded', init);
 
 // --- VOTING SYSTEM ---
