@@ -1141,7 +1141,7 @@ select option {
 /* --- PWA INSTALL MODAL (Redesigned) --- */
 .full-screen-overlay {
     z-index: 9999 !important;
-    background: rgba(15, 23, 42, 0.98) !important;
+    background: rgba(15, 23, 42, 0.85) !important;
     /* Almost solid */
     backdrop-filter: blur(15px);
     display: none;

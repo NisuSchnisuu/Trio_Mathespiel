@@ -38,6 +38,8 @@
             });
         }
     </script>
+    <!-- QR Scanner Library -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 </head>
 
 <body>
@@ -115,13 +117,43 @@
                     <div id="join-container">
                         <input type="text" id="join-code" placeholder="Game Code eingeben"
                             style="margin-bottom: 8px; text-transform:uppercase;">
-                        <button class="btn-primary" id="btn-enter" style="width:100%">Beitreten</button>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn-primary" id="btn-enter" style="flex: 2;">Beitreten</button>
+                            <button class="btn-secondary" id="btn-scan-qr"
+                                style="flex: 1; padding: 0; display: flex; align-items: center; justify-content: center;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+                                    <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+                                    <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+                                    <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+                                    <rect x="7" y="7" width="3" height="3" />
+                                    <rect x="14" y="7" width="3" height="3" />
+                                    <rect x="7" y="14" width="3" height="3" />
+                                    <line x1="14" y1="14" x2="14" y2="14" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
         </div>
     </section>
+
+    <!-- QR SCANNER MODAL -->
+    <div id="qr-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 500px; width: 95%;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h2 style="margin:0;">QR Code scannen</h2>
+                <button id="btn-close-qr"
+                    style="background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">&times;</button>
+            </div>
+            <div id="reader" style="width: 100%; border-radius: 12px; overflow: hidden; background: #000;"></div>
+            <p style="margin-top:15px; color:#cbd5e1; font-size:0.9rem;">Richte die Kamera auf den QR-Code des Hosts.
+            </p>
+        </div>
+    </div>
 
     <!-- VIEW 1.5: WAITING ROOM -->
     <section id="waiting-room-view" class="view">
