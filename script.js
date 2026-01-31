@@ -332,6 +332,9 @@ function setupEventListeners() {
             }
         });
     }
+
+    // Init QR Scanner
+    setupQRScanner();
 }
 
 function handleGlobalBack() {
@@ -803,6 +806,102 @@ function subscribeToGame(gameId) {
             }
         }
     });
+
+    // Real-Time Selection Sync
+    gameRef.child('status/selection').on('value', snap => {
+        const sel = snap.val() || [];
+        // Only update if DIFFERENT to avoid jitter if loopback
+        if (JSON.stringify(sel) !== JSON.stringify(appState.selectedCells)) {
+            appState.selectedCells = sel;
+            updateGridSelection();
+
+            // If modal is open but buttons missing (Reload case), repopulate
+            const modal = document.getElementById('calc-modal');
+            if (modal.classList.contains('active') && sel.length > 0) {
+                populateModalButtons(true); // Preserve formula
+            }
+        }
+    });
+
+}
+
+function setupQRScanner() {
+    const scanBtn = document.getElementById('btn-scan-qr');
+    const qrModal = document.getElementById('qr-modal');
+    const closeQrBtn = document.getElementById('btn-close-qr');
+    let html5QrcodeScanner = null;
+
+    if (scanBtn) {
+        scanBtn.addEventListener('click', () => {
+            qrModal.classList.add('active');
+
+            // Init Scanner
+            if (!html5QrcodeScanner) {
+                html5QrcodeScanner = new Html5Qrcode("reader");
+            }
+
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+            // Prefer back camera
+            html5QrcodeScanner.start({ facingMode: "environment" }, config, (decodedText, decodedResult) => {
+                // SUCCESS
+                console.log("Scan success:", decodedText);
+
+                // Handle URL or Code
+                let code = decodedText;
+
+                // If URL, extract 'join' param
+                try {
+                    const url = new URL(decodedText);
+                    const joinParam = url.searchParams.get('join');
+                    if (joinParam) code = joinParam;
+                } catch (e) {
+                    // Not a URL, use raw text
+                }
+
+                if (code && code.length >= 4) { // Basic validation
+                    // Stop scanner
+                    html5QrcodeScanner.stop().then(() => {
+                        qrModal.classList.remove('active');
+
+                        // Fill input
+                        inputs.joinCode.value = code;
+
+                        // Auto-Join if name exists
+                        if (inputs.playerName.value.trim()) {
+                            joinGame(code, inputs.playerName.value.trim());
+                        } else {
+                            // Focus name input
+                            inputs.playerName.focus();
+                        }
+                    }).catch(err => console.error(err));
+                }
+
+            }, (errorMessage) => {
+                // parse error, ignore
+            }).catch(err => {
+                console.error("Error starting scanner", err);
+                alert("Kamera konnte nicht gestartet werden. Bitte Berechtigung prüfen.");
+                qrModal.classList.remove('active');
+            });
+        });
+    }
+
+    // Close QR Modal
+    if (closeQrBtn) {
+        closeQrBtn.addEventListener('click', () => {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.stop().then(() => {
+                    qrModal.classList.remove('active');
+                }).catch(err => {
+                    console.error("Stop failed", err);
+                    qrModal.classList.remove('active');
+                });
+            } else {
+                qrModal.classList.remove('active');
+            }
+        });
+    }
 }
 
 function handleResultSync(res) {
