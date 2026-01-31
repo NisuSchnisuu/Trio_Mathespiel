@@ -1182,6 +1182,12 @@ function populateModalButtons(preserveFormula = false) {
             } else {
                 b.style.display = '';
             }
+        } else if (currentDiff === 'advanced') {
+            if (b.dataset.op === '*' || b.dataset.op === '(' || b.dataset.op === ')') {
+                b.style.display = 'none';
+            } else {
+                b.style.display = '';
+            }
         } else {
             b.style.display = '';
         }
@@ -1285,9 +1291,9 @@ function handleOpClick(op, btn) {
         }
     }
 
-    // RULE: Normal Mode - Max 1 +/-
+    // RULE: Normal/Advanced Mode - Max 1 +/-
     // "Es erzwingt nicht...". Ensuring UI blocks second + or -.
-    if (appState.difficulty === 'normal' && ['+', '-'].includes(op)) {
+    if ((appState.difficulty === 'normal' || appState.difficulty === 'advanced') && ['+', '-'].includes(op)) {
         if (modalState.formula.includes('+') || modalState.formula.includes('-')) {
             if (btn) flashInvalidElement(btn);
             return;
@@ -1519,14 +1525,46 @@ function validateAttempt(attempt, attemptKey) {
                     failReason = "Ungültige Struktur! Multiplikation muss vor Subtraktion erfolgen (oder A*B - C).";
                 }
             }
+        } else if (appState.difficulty === 'advanced') {
+            // Check for valid structure: Exact one / and one +/-
+            const f = attempt.formula;
+            const countDiv = (f.match(/\//g) || []).length;
+            const countPlus = (f.match(/\+/g) || []).length;
+            const countMinus = (f.match(/-/g) || []).length;
+
+            if (countDiv !== 1) {
+                structureValid = false;
+                failReason = "Es muss genau eine Geteilt-Rechnung enthalten sein!";
+            }
+            if (countPlus + countMinus !== 1) {
+                structureValid = false;
+                if (!failReason) failReason = "Es muss genau eine Plus- oder Minus-Rechnung enthalten sein!";
+            }
+
+            // Structure Check: A/B+C, A/B-C, C+A/B
+            if (f.trim().startsWith('-')) structureValid = false;
+
+            if (countMinus === 1) {
+                const idxMinus = f.indexOf('-');
+                const idxDiv = f.indexOf('/');
+                if (idxMinus < idxDiv) {
+                    structureValid = false;
+                    failReason = "Ungültige Struktur! Division muss vor Subtraktion erfolgen (oder (A/B) - C).";
+                }
+            }
         }
 
         if (Math.abs(result - attempt.target) < 0.001 && structureValid) valid = true;
     } catch (e) { }
 
     if (!structureValid && !failReason) {
-        if ((attempt.formula.match(/\*/g) || []).length !== 1) failReason = "Es muss genau eine Mal-Rechnung enthalten sein!";
-        else failReason = "Es muss genau eine Plus- oder Minus-Rechnung enthalten sein!";
+        if (appState.difficulty === 'normal') {
+            if ((attempt.formula.match(/\*/g) || []).length !== 1) failReason = "Es muss genau eine Mal-Rechnung enthalten sein!";
+            else failReason = "Es muss genau eine Plus- oder Minus-Rechnung enthalten sein!";
+        } else if (appState.difficulty === 'advanced') {
+            if ((attempt.formula.match(/\//g) || []).length !== 1) failReason = "Es muss genau eine Geteilt-Rechnung enthalten sein!";
+            else failReason = "Es muss genau eine Plus- oder Minus-Rechnung enthalten sein!";
+        }
     }
 
     const resultData = {
@@ -1675,33 +1713,17 @@ function generateGridData(size) {
     const totalCells = size * size;
     let max = 9;
     let min = 1;
+    let maxTarget = 50;
 
-    if (appState.numberRange) {
-        // Range might be object {min, max} or string "1-10"?
-        // createGame sets it as string value from DOM? NO, createGame sets it as string "1-10".
-        // But appState expects object?
-        // Let's check init state: numberRange: { min: 1, max: 9 }.
-        // If data.settings override it with string, that's the bug logic.
-        // But here we need to be safe.
-        if (typeof appState.numberRange === 'object') {
-            max = appState.numberRange.max || 9;
-            min = appState.numberRange.min || 1;
-        } else if (typeof appState.numberRange === 'string') {
-            // Parse string like "1-10" if needed, but usually we just want defaults or specific
-            // If string, likely from bad save. Use defaults.
-            // Actually, if string "extended", maybe max=20?
-            if (appState.numberRange === 'extended') max = 19;
-        }
-    }
-
-    // Adjust for difficulties in extended
-    const isExtended = (size === 5);
-    const maxTarget = isExtended ? 100 : 50;
-
-    // Normal Mode: Keep numbers smaller (1-10 or 1-12)
-    if (appState.difficulty === 'normal') {
-        max = 10;
-        min = 1;
+    // Range Logic
+    // Default to base if unspeicified or 'base'
+    if (appState.numberRange === 'extended') {
+        max = 19; // "1-19"
+        maxTarget = 100; // "Zielzahl 100"
+    } else {
+        // base
+        max = 9; // "1-9"
+        maxTarget = 50; // "Zielzahl bis 50"
     }
 
     const newGrid = [];
@@ -1772,6 +1794,16 @@ function tryAdd(triplet, diff, addSol) {
             addSol(triplet, (p[0] * p[1]) + p[2]);
             // (p0 * p1) - p2
             addSol(triplet, (p[0] * p[1]) - p[2]);
+        });
+    } else if (diff === 'advanced') {
+        // Advanced: (A / B) +/- C
+        const perms = [[a, b, c], [a, c, b], [b, a, c], [b, c, a], [c, a, b], [c, b, a]];
+
+        perms.forEach(p => {
+            // (p0 / p1) + p2
+            addSol(triplet, (p[0] / p[1]) + p[2]);
+            // (p0 / p1) - p2
+            addSol(triplet, (p[0] / p[1]) - p[2]);
         });
     }
     else {
