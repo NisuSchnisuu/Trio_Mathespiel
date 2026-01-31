@@ -144,6 +144,36 @@ function checkSession() {
 
 // --- Initialization ---
 function init() {
+    // PWA ENFORCEMENT CHECK
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator.standalone === true);
+
+    // Check if on localhost (allow bypass for dev)
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+    // REMOVE THIS LINE TO ENFORCE EVERYWHERE:
+    // if (!isStandalone && !isLocalhost) {
+
+    // User requested "im Internet" -> Enforce strict?
+    // "Also im Browser gibt es das Modal... und in der Installierten App funktioniert es."
+    // Let's enforce it strictly unless it is specifically prevented. 
+    // BUT: I am running on localhost now. If I enforce strict, the user (and I) might get blocked if not "installed".
+    // Installing localhost PWA is possible but annoying.
+    // I will add a developer bypass check: ?dev=true logic OR just allow localhost.
+    // The prompt says "wenn man die App im Internet öffnet". This implies remote access.
+    // So excluding localhost is likely what they want implicitly to pass "App im Internet".
+    // I'll stick to blocking non-standalone.
+
+    if (!isStandalone) {
+        // Show Install Modal
+        document.getElementById('pwa-install-modal').classList.add('active');
+        // Do NOT proceed with init?
+        // JS still runs, but view is blocked. That is fine.
+        // We can just return? No, initialization might be needed for PWA install prompt events event listeners?
+        // Actually, preventing further interaction is done by the modal covering everything (z-9999).
+        // So we just let the rest run background stuff.
+    }
+
     setupEventListeners();
 
     // Check for Join Code in URL

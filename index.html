@@ -240,6 +240,42 @@
         </div>
     </div> <!-- Close calc-modal -->
 
+    <!-- PWA INSTALL MODAL -->
+    <div id="pwa-install-modal" class="modal-overlay full-screen-overlay">
+        <div class="modal-content install-content">
+            <h1 class="install-title">App Installation erforderlich</h1>
+            <p class="install-subtitle">Um Trio zu spielen, musst du die App installieren.</p>
+
+            <div class="install-instructions">
+                <!-- iOS -->
+                <div class="platform-block">
+                    <h3><span class="icon">🍎</span> iOS (Safari)</h3>
+                    <ol>
+                        <li>Tippe auf den <strong>Teilen</strong>-Button <span class="ios-share-icon"></span></li>
+                        <li>Wähle <strong>"Zum Home-Bildschirm"</strong></li>
+                        <li>Tippe auf <strong>"Hinzufügen"</strong></li>
+                    </ol>
+                </div>
+                <!-- Android -->
+                <div class="platform-block">
+                    <h3><span class="icon">🤖</span> Android (Chrome)</h3>
+                    <ol>
+                        <li>Tippe auf das <strong>Menü</strong> (3 Punkte)</li>
+                        <li>Wähle <strong>"App installieren"</strong> oder <strong>"Zum Startbildschirm"</strong></li>
+                    </ol>
+                </div>
+                <!-- Windows -->
+                <div class="platform-block">
+                    <h3><span class="icon">💻</span> Windows (Chrome/Edge)</h3>
+                    <p>Klicke auf das <strong>Installieren-Icon</strong> <span class="chrome-install-icon">⊕</span> in
+                        der
+                        Adressleiste.</p>
+                </div>
+            </div>
+            <p class="refresh-hint">App installiert? Schließe diesen Tab und öffne die App!</p>
+        </div>
+    </div>
+
     <!-- APP GENERIC MODAL -->
     <div id="app-modal" class="modal-overlay">
         <div class="modal-content" style="max-width: 400px;">
