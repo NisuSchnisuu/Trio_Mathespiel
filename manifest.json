@@ -2,9 +2,15 @@
   "name": "Trio - Mathespiel",
   "short_name": "Trio",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
+  "orientation": "landscape",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
+  "categories": [
+    "education",
+    "games"
+  ],
   "icons": [
     {
       "src": "assets/Trio-logo-192x192.png",
