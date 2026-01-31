@@ -1,13 +1,20 @@
 :root {
     /* Color Palette - Modern & Vibrant */
-    --primary-color: #6366f1; /* Indigo */
+    --primary-color: #6366f1;
+    /* Indigo */
     --primary-hover: #4f46e5;
-    --secondary-color: #ec4899; /* Pink */
-    --accent-color: #8b5cf6; /* Violet */
-    --background-dark: #0f172a; /* Slate 900 */
-    --background-panel: #1e293b; /* Slate 800 */
-    --text-main: #f8fafc; /* Slate 50 */
-    --text-muted: #94a3b8; /* Slate 400 */
+    --secondary-color: #ec4899;
+    /* Pink */
+    --accent-color: #8b5cf6;
+    /* Violet */
+    --background-dark: #0f172a;
+    /* Slate 900 */
+    --background-panel: #1e293b;
+    /* Slate 800 */
+    --text-main: #f8fafc;
+    /* Slate 50 */
+    --text-muted: #94a3b8;
+    /* Slate 400 */
     --success: #10b981;
     --danger: #ef4444;
     --warning: #f59e0b;
@@ -27,16 +34,56 @@
     -webkit-font-smoothing: antialiased;
 }
 
+html {
+    height: 100%;
+}
+
 body {
     font-family: var(--font-family);
     background-color: var(--background-dark);
     color: var(--text-main);
-    height: 100vh;
+    height: 100dvh;
     width: 100vw;
-    overflow: hidden; /* App-like feel */
+    overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
+    margin: 0;
+}
+
+/* Leave Button Style */
+.btn-leave {
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+.btn-leave:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.btn-icon-close {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.2s;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.btn-icon-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white !important;
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: rotate(90deg);
 }
 
 /* Views Management */
@@ -46,6 +93,10 @@ body {
     height: 100%;
     opacity: 0;
     transition: opacity 0.3s ease-in-out;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 20px;
+    /* Base padding to prevent edge touching */
 }
 
 .view.active {
@@ -79,27 +130,217 @@ input:focus {
 
 /* --- LOBBY VIEW --- */
 #lobby-view {
+    display: none;
+    /* Handled by .view.active */
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    background: radial-gradient(circle at center, #2d3748 0%, var(--background-dark) 80%);
 }
 
-.lobby-container {
+#lobby-view.active {
+    display: flex;
+}
+
+#waiting-room-view {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+#waiting-room-view.active {
+    display: flex;
+}
+
+/* Specific: Wide layout for Waiting Room */
+/* --- COMPACT WAITING ROOM --- */
+.compact-lobby {
+    width: 95%;
+    max-width: 1200px;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    /* justify-content: space-between; -- Removed to let it flow */
+    height: auto;
+    min-height: 80vh;
+    /* Fill most of screen */
+    background: var(--background-panel);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.lobby-header {
+    font-size: 2rem;
+    margin-bottom: 20px;
+    text-align: left;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 15px;
+}
+
+.lobby-content-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    /* Info takes less space than players */
+    gap: 30px;
+    flex-grow: 1;
+    /* Fill remaining space */
+}
+
+/* CARDS */
+.info-card,
+.players-card {
+    background: rgba(15, 23, 42, 0.4);
+    /* Darker inner bg */
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 1px solid #334155;
+    height: 100%;
+}
+
+/* Info Card Specifics */
+.info-card {
+    justify-content: center;
+}
+
+.code-section {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.label {
+    display: block;
+    color: var(--secondary-color);
+    font-size: 0.8rem;
+    letter-spacing: 2px;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.big-code {
+    font-size: 4.5rem;
+    /* HUGE */
+    font-weight: 900;
+    font-family: monospace;
+    line-height: 1;
+    color: white;
+    text-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+}
+
+.qr-container img {
+    max-width: 250px;
+    width: 100%;
+    border-radius: 12px;
+    border: 4px solid white;
+}
+
+/* Players Card Specifics */
+.players-card {
+    display: flex;
+    /* Explicit flex container */
+    flex-direction: column;
+    align-items: stretch;
+    /* Stretch children width */
+}
+
+.players-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.players-header h3 {
+    font-size: 1.2rem;
+    color: var(--text-muted);
+}
+
+.badge {
+    background: var(--primary-color);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.player-grid-compact {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 15px;
+    flex-grow: 1;
+    overflow-y: auto;
+    /* Scroll ONLY players if too many */
+    max-height: 50vh;
+    /* Safety limit */
+    padding-right: 5px;
+}
+
+.lobby-footer {
+    margin-top: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    border-top: 1px solid #334155;
+    padding-top: 20px;
+}
+
+/* Reuse existing lobby styles for simpler view */
+#lobby-view .lobby-container {
     background: var(--background-panel);
     padding: 40px;
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
-    width: 100%;
-    max-width: 500px;
+    width: 95%;
+    /* Wider! */
+    max-width: 1600px;
+    /* Much wider max width for full screen feel */
     text-align: center;
     border: 1px solid rgba(255, 255, 255, 0.05);
+    margin: auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    /* More breathing room */
+    align-items: center;
+    min-height: 60vh;
+    /* Use height */
+}
+
+/* Intro Section (Title + Name) in Grid */
+.lobby-intro {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
+}
+
+/* Actions Section in Grid */
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    justify-content: center;
+    height: 100%;
+    margin-top: 0;
+    max-width: 600px;
+    /* Limit buttons width */
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+}
+
+/* Ensure title doesn't break layout */
+.game-title {
+    margin-bottom: 20px;
 }
 
 .game-title {
     font-size: 3rem;
     font-weight: 800;
     background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     margin-bottom: 30px;
@@ -108,7 +349,13 @@ input:focus {
 
 .input-group {
     margin-bottom: 24px;
-    text-align: left;
+    text-align: center;
+    /* Center labels and inputs */
+    max-width: 600px;
+    /* Limit input width inside the wide column */
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
 }
 
 .input-group label {
@@ -124,11 +371,45 @@ input:focus {
     font-size: 1.1rem;
 }
 
-.action-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    margin-top: 24px;
+/* Mobile/Tablet Adjustments */
+@media (max-width: 768px) {
+    #lobby-view .lobby-container {
+        grid-template-columns: 1fr;
+        /* Stack vertically */
+        gap: 20px;
+        max-width: 500px;
+        padding: 20px;
+        height: auto;
+        min-height: 50vh;
+        /* Ensure it takes reasonable space but allows centered flex */
+    }
+
+    .lobby-intro {
+        margin-bottom: 10px;
+    }
+
+    .game-title {
+        font-size: 2.5rem;
+        margin-bottom: 15px;
+    }
+
+    /* Mobile Waiting Room */
+    #waiting-room-view .lobby-container {
+        grid-template-columns: 1fr;
+        gap: 30px;
+        align-items: center;
+        max-width: 500px;
+        height: auto;
+    }
+
+    #waiting-room-view h2 {
+        grid-column: span 1 !important;
+        /* Reset span */
+    }
+
+    .big-code {
+        font-size: 3.5rem;
+    }
 }
 
 .btn-primary {
@@ -166,14 +447,66 @@ input:focus {
     padding-top: 20px;
 }
 
+/* WAITING ROOM STYLES */
+.code-display-box {
+    background: #0f172a;
+    padding: 15px;
+    border-radius: 12px;
+    border: 2px dashed var(--primary-color);
+    margin-bottom: 20px;
+}
+
+.code-display-box h1 {
+    font-size: 2.5rem;
+    letter-spacing: 5px;
+    font-family: monospace;
+    color: var(--secondary-color);
+}
+
+.player-slots {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin: 20px 0;
+}
+
+.lobby-slot {
+    background: #334155;
+    padding: 15px;
+    border-radius: 8px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.lobby-slot.occupied {
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+    color: white;
+    border: 1px solid transparent;
+}
+
+.qr-box {
+    text-align: center;
+    margin: 10px 0;
+}
+
+.qr-box img {
+    border-radius: 8px;
+    border: 4px solid white;
+}
+
 /* Settings Modal (Placeholder logic in CSS) */
 .settings-panel {
     margin-top: 20px;
     padding: 16px;
-    background: rgba(0,0,0,0.2);
+    background: rgba(0, 0, 0, 0.2);
     border-radius: var(--radius-sm);
-    text-align: left;
+    text-align: center;
+    /* Center align settings too */
 }
+
 .settings-option {
     margin-bottom: 12px;
 }
@@ -181,12 +514,15 @@ input:focus {
 /* --- GAME VIEW --- */
 #game-view {
     flex-direction: row;
-    padding: 24px;
-    gap: 24px;
+    padding: 20px;
+    gap: 20px;
+    overflow: hidden;
+    /* Game view tries to stay fixed, but internal containers scroll if needed */
 }
 
 .game-grid-container {
-    flex: 65; /* 65% width */
+    flex: 65;
+    /* 65% width */
     background: var(--background-panel);
     border-radius: var(--radius-lg);
     padding: 20px;
@@ -202,13 +538,14 @@ input:focus {
 .game-grid {
     display: grid;
     gap: 8px;
-    /* Determine grid columns dynamically in JS, default 7x7 */
-    /* grid-template-columns: repeat(7, 1fr); */
+    /* Determine grid columns dynamically in JS */
     width: 100%;
     height: 100%;
-    max-height: 80vh; 
-    max-width: 80vh; /* Keep it square-ish */
+    /* Ensure it fits within container constraints */
+    max-height: 100%;
+    max-width: 100%;
     aspect-ratio: 1/1;
+    margin: auto;
 }
 
 .grid-cell {
@@ -235,7 +572,8 @@ input:focus {
 }
 
 .game-dashboard {
-    flex: 35; /* 35% width */
+    flex: 35;
+    /* 35% width */
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -301,26 +639,28 @@ input:focus {
 
 #buzzer-btn {
     width: 100%;
-    background: var(--primary-color); /* Default state */
+    background: var(--primary-color);
+    /* Default state */
     color: white;
     font-size: 2rem;
     font-weight: 800;
     text-transform: uppercase;
     padding: 30px;
     border-radius: var(--radius-lg);
-    box-shadow: 0 10px 0 #3730a3, 0 15px 20px rgba(0,0,0,0.2); /* 3D effect */
+    box-shadow: 0 10px 0 #3730a3, 0 15px 20px rgba(0, 0, 0, 0.2);
+    /* 3D effect */
     transition: all 0.1s;
     letter-spacing: 2px;
 }
 
 #buzzer-btn:active {
     transform: translateY(6px);
-    box-shadow: 0 4px 0 #3730a3, 0 8px 10px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 0 #3730a3, 0 8px 10px rgba(0, 0, 0, 0.2);
 }
 
 #buzzer-btn.active-buzzer {
     background: var(--warning);
-    box-shadow: 0 10px 0 #b45309; 
+    box-shadow: 0 10px 0 #b45309;
 }
 
 /* Media Query for iPad Landscape and up */
@@ -333,12 +673,163 @@ input:focus {
     #game-view {
         flex-direction: column;
         overflow-y: auto;
+        /* Allow scrolling on mobile game view */
+        height: auto;
+        min-height: 100%;
     }
+
     .game-grid-container {
         flex: none;
-        height: 60vh;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1/1;
+        padding: 10px;
     }
+
+    .game-grid {
+        aspect-ratio: 1/1;
+    }
+
     .game-dashboard {
         flex: none;
+        width: 100%;
+    }
+
+    /* On mobile, back button needs to be careful not to overlap */
+    #global-back-container {
+        top: 10px;
+        left: 10px;
+    }
+
+    .lobby-container {
+        padding: 20px;
+    }
+}
+
+/* MODAL STYLES */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    justify-content: center;
+    align-items: center;
+    animation: fadeIn 0.2s;
+}
+
+.modal-overlay.active {
+    display: flex;
+}
+
+.modal-content {
+    background: var(--background-panel);
+    padding: 30px;
+    border-radius: 20px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    animation: scaleUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.formula-display {
+    background: #0f172a;
+    border: 2px solid #334155;
+    border-radius: 12px;
+    height: 60px;
+    margin: 20px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-family: monospace;
+    color: var(--text-main);
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 0 10px;
+}
+
+.numpad-section {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.operator-pad {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.btn-calc {
+    background: #334155;
+    color: white;
+    border-radius: 8px;
+    padding: 15px 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+    border: none;
+    transition: all 0.1s;
+    cursor: pointer;
+}
+
+.btn-calc:active {
+    transform: scale(0.95);
+    background: #475569;
+}
+
+.btn-calc.op {
+    background: #475569;
+}
+
+.btn-calc.action {
+    background: #ef4444;
+}
+
+.btn-calc.num-btn {
+    background: var(--primary-color);
+    font-size: 1.5rem;
+    padding: 0;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.btn-calc.num-btn.used {
+    background: #334155;
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes scaleUp {
+    from {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
     }
 }

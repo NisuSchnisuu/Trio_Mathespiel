@@ -1,6 +1,7 @@
 // DOM Elements
 const views = {
     lobby: document.getElementById('lobby-view'),
+    waiting: document.getElementById('waiting-room-view'),
     game: document.getElementById('game-view')
 };
 
@@ -16,113 +17,870 @@ const inputs = {
     difficulty: document.getElementById('difficulty')
 };
 
+const elements = {
+    grid: document.getElementById('game-grid'),
+    targetNumber: document.getElementById('target-number'),
+    playersList: document.getElementById('players-container'),
+    lobbyCode: document.getElementById('lobby-code-display'),
+    lobbySlots: document.getElementById('lobby-player-slots'),
+    lobbyQR: document.getElementById('lobby-qr-container')
+};
+
 const buttons = {
     createGame: document.getElementById('btn-create'),
-    joinGame: document.getElementById('btn-join'),
+    // joinGame removed
     enterGame: document.getElementById('btn-enter'),
-    buzzer: document.getElementById('buzzer-btn')
+    startGame: document.getElementById('btn-start-game'),
+    buzzer: document.getElementById('buzzer-btn'),
+    // New Back Buttons
+    lobbyBack: document.getElementById('btn-lobby-back'),
+    gameBack: document.getElementById('btn-game-back')
 };
 
 // State
 let appState = {
     currentView: 'lobby',
     playerName: '',
+    playerId: null, // assigned by firebase
     gameId: null,
-    isHost: false
+    isHost: false,
+    gridData: [],
+    gridSize: 7,
+    difficulty: 'medium',
+    target: 0,
+    players: {},
+
+    // Gameplay State
+    buzzerOwner: null,
+    buzzerTimer: null,
+    selectedCells: [], // Array of indices
+    vetoVotes: {},
+    isLocked: false,
+    lockedUntil: null
 };
 
-// Constants
-const TARGET_GRID_SIZE = 7;
+// --- View Management ---
+function switchView(viewName) {
+    appState.currentView = viewName;
+
+    // Hide all views
+    Object.values(views).forEach(el => {
+        if (el) el.classList.remove('active');
+    });
+
+    // Show target view
+    if (views[viewName]) {
+        views[viewName].classList.add('active');
+    }
+    // Note: Back buttons are now embedded in views, no global toggle needed
+}
+
+// --- Persistence Helpers ---
+function saveSession() {
+    if (appState.gameId && appState.playerId) {
+        const session = {
+            gameId: appState.gameId,
+            playerId: appState.playerId,
+            isHost: appState.isHost,
+            playerName: appState.playerName
+        };
+        localStorage.setItem('trio_session', JSON.stringify(session));
+    }
+}
+
+function clearSession() {
+    localStorage.removeItem('trio_session');
+}
+
+function checkSession() {
+    const sessionStr = localStorage.getItem('trio_session');
+    if (sessionStr) {
+        try {
+            const session = JSON.parse(sessionStr);
+            if (session.gameId && session.playerId) {
+                console.log("Found previous session:", session);
+                // Restore State
+                appState.gameId = session.gameId;
+                appState.playerId = session.playerId;
+                appState.isHost = session.isHost;
+                appState.playerName = session.playerName;
+
+                // Attempt Reconnect
+                subscribeToGame(appState.gameId);
+                // Check if we are playing or waiting?
+                // subscribeToGame handles view switch based on 'state'
+                // But we default to waiting room initially
+                enterWaitingRoom();
+                return true;
+            }
+        } catch (e) {
+            console.error("Session parse error", e);
+            clearSession();
+        }
+    }
+    return false;
+}
 
 // --- Initialization ---
 function init() {
     setupEventListeners();
-    renderGrid(7); // Default mock grid
+
+    // Check for Join Code in URL
+    const params = new URLSearchParams(window.location.search);
+    const joinCode = params.get('join');
+
+    // Priority: 1. Join Code, 2. Restoration, 3. Default Lobby
+    if (joinCode) {
+        // Pre-fill
+        inputs.joinCode.value = joinCode;
+        // Optional: Focus name
+        inputs.playerName.focus();
+    } else {
+        // Try Restore
+        checkSession();
+    }
 }
 
 // --- Event Listeners ---
 function setupEventListeners() {
-    // Buttons
+    // Create Game
     buttons.createGame.addEventListener('click', () => {
         const name = inputs.playerName.value.trim();
-        if (!name) {
-            alert('Bitte gib deinen Namen ein!');
-            return;
-        }
-        appState.playerName = name;
-        appState.isHost = true;
-        // Logic to setup game would go here
+        if (!name) { alert('Bitte gib deinen Namen ein!'); return; }
 
-        // Settings are visible by default in HTML for simplicity per instructions "Wenn man erstellt, soll man Settings wählen können"
-        // For now, we simulate "Creating" simply by toggling view
-        switchView('game');
+        createGame(name);
     });
 
+    // Enter Game (Join)
     buttons.enterGame.addEventListener('click', () => {
         const name = inputs.playerName.value.trim();
         const code = inputs.joinCode.value.trim();
-        if (!name || !code) {
-            alert('Name und Game-Code sind erforderlich!');
+        if (!name || !code) { alert('Name und Game-Code sind erforderlich!'); return; }
+
+        joinGame(code, name);
+    });
+
+    buttons.startGame.addEventListener('click', startGameAction);
+    buttons.buzzer.addEventListener('click', handleBuzzerClick);
+
+    // Back Button Listeners
+    if (buttons.lobbyBack) buttons.lobbyBack.addEventListener('click', handleGlobalBack);
+    if (buttons.gameBack) buttons.gameBack.addEventListener('click', handleGlobalBack);
+}
+
+function handleGlobalBack() {
+    // If in Game or Waiting -> Leave Game logic
+    if (appState.currentView === 'game' || appState.currentView === 'waiting') {
+        if (confirm("Möchtest du das Spiel wirklich verlassen?")) {
+            leaveGame();
+        }
+    } else {
+        // Default fallback (though usually hidden in lobby)
+        location.reload();
+    }
+}
+
+
+// --- Firebase Logic ---
+
+function createGame(playerName) {
+    const shortId = Math.floor(10000 + Math.random() * 90000).toString(); // 5 digit code
+    const gameRef = db.ref(`games/${shortId}`);
+
+    gameRef.once('value').then(snapshot => {
+        if (snapshot.exists()) {
+            // Collision? Retry recursively
+            createGame(playerName);
             return;
         }
-        appState.playerName = name;
-        appState.isHost = false;
-        // Join logic would go here
-        switchView('game');
-    });
 
-    // Toggle Join Input visibility for better UI
-    buttons.joinGame.addEventListener('click', () => {
-        // Simple toggle or scroll to join section
-        // For now, let's assume 'joinGame' in the prompt was the trigger to show the code input
-        // But the prompts says: "Start screen has buttons 'Create' and 'Join'".
-        // We will make sure the Join section is clear.
-        document.getElementById('join-container').style.display = 'block';
-        document.getElementById('create-container').style.display = 'none';
-    });
+        appState.playerName = playerName;
+        appState.isHost = true;
+        appState.difficulty = inputs.difficulty.value;
+        appState.gridSize = parseInt(inputs.gridSize.value);
+        appState.gameId = shortId;
 
-    // Back to "Menu" logic if we need it (not requested but nice)
+        // Host Player ID (still needs to be unique inside the game)
+        // We can use a simple random string for player ID too since it's local scope
+        // But push() is fine for players list.
+        const playersRef = gameRef.child('players');
+        const hostPlayerRef = playersRef.push();
+        appState.playerId = hostPlayerRef.key;
+
+        const gameData = {
+            state: 'waiting',
+            settings: {
+                difficulty: appState.difficulty,
+                gridSize: appState.gridSize
+            },
+            hostId: appState.playerId,
+            createdAt: firebase.database.ServerValue.TIMESTAMP
+        };
+
+        gameRef.set(gameData).then(() => {
+            hostPlayerRef.set({
+                name: playerName,
+                score: 0,
+                status: 'waiting',
+                isHost: true
+            });
+
+            subscribeToGame(appState.gameId);
+            enterWaitingRoom();
+            saveSession();
+
+            gameRef.onDisconnect().remove();
+        });
+    });
 }
 
-// --- View Switching ---
-function switchView(viewName) {
-    if (!views[viewName]) return;
+function joinGame(gameId, playerName) {
+    appState.playerName = playerName;
+    appState.gameId = gameId;
+    appState.isHost = false;
 
-    // Hide all
-    Object.values(views).forEach(el => {
-        el.classList.remove('active');
-        // setTimeout to allow transition if we want to add display:none logic correctly handled by CSS
+    const gameRef = db.ref(`games/${gameId}`);
+
+    // Check if game exists first
+    gameRef.once('value').then(snapshot => {
+        if (!snapshot.exists()) {
+            alert('Spiel nicht gefunden!');
+            return;
+        }
+
+        const playerRef = gameRef.child('players').push();
+        appState.playerId = playerRef.key;
+
+        playerRef.set({
+            name: playerName,
+            score: 0,
+            status: 'waiting',
+            isHost: false
+        }).then(() => {
+            subscribeToGame(gameId);
+            enterWaitingRoom();
+
+            saveSession(); // Save session
+
+            // Auto-remove player if client disconnects
+            playerRef.onDisconnect().remove();
+        });
     });
-
-    // Show target
-    views[viewName].classList.add('active');
-    appState.currentView = viewName;
 }
 
-// --- Game Logic Mockups ---
-function renderGrid(size) {
-    const gridEl = document.getElementById('game-grid');
-    gridEl.innerHTML = '';
+function enterWaitingRoom() {
+    switchView('waiting');
 
-    // update CSS grid propery
-    gridEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+    // UI Updates
+    elements.lobbyCode.innerText = appState.gameId;
 
-    const totalCells = size * size;
-    for (let i = 0; i < totalCells; i++) {
-        const cell = document.createElement('div');
-        cell.className = 'grid-cell';
-        cell.innerText = Math.floor(Math.random() * 20) + 1; // Random numbers 1-20
-        cell.dataset.index = i;
-        cell.addEventListener('click', handleCellClick);
-        gridEl.appendChild(cell);
+    // QR Code with Direct Link
+    // Construct URL: Current Base + ?join=GAMEID
+    const protocol = window.location.protocol;
+    const host = window.location.host;
+    let path = window.location.pathname;
+
+    // Remove 'index.html' for cleaner URL if present
+    if (path.endsWith('index.html')) {
+        path = path.substring(0, path.length - 'index.html'.length);
+    }
+    // Ensure trailing slash
+    if (!path.endsWith('/')) {
+        path += '/';
+    }
+
+    const joinUrl = `${protocol}//${host}${path}?join=${appState.gameId}`;
+
+    console.log("Generating QR for:", joinUrl); // Debug log
+
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(joinUrl)}`;
+
+    elements.lobbyQR.innerHTML = `
+        <img src="${qrUrl}" alt="Game QR Code" style="max-width:200px; width:100%; border:4px solid white; border-radius:8px;" />
+        <p style="font-size: 0.8rem; color: #64748b; margin-top: 10px; word-break: break-all; font-family: monospace;">
+            ${joinUrl}
+        </p>
+    `;
+
+    // Warn if on localhost
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        const warnDiv = document.createElement('div');
+        warnDiv.style.backgroundColor = '#451a03';
+        warnDiv.style.color = '#fbbf24';
+        warnDiv.style.padding = '10px';
+        warnDiv.style.borderRadius = '8px';
+        warnDiv.style.marginTop = '15px';
+        warnDiv.style.fontSize = '0.9rem';
+        warnDiv.style.lineHeight = '1.4';
+        warnDiv.innerHTML = `
+            <strong>⚠️ ACHTUNG:</strong><br>
+            Du bist auf <code>${hostname}</code>.<br>
+            Andere Geräte können diesen QR-Code nicht scannen.<br>
+            Bitte öffne die Seite über deine <strong>Netzwerk-IP</strong> (z.B. 192.168.X.X), damit der QR-Code funktioniert.
+        `;
+        elements.lobbyQR.appendChild(warnDiv);
+    }
+
+    if (appState.isHost) {
+        buttons.startGame.style.display = 'block';
+    } else {
+        buttons.startGame.style.display = 'none';
+        document.getElementById('lobby-status-text').innerText = "Warte auf Host...";
+    }
+
+    // Add Leave Button if not exists
+    if (!document.getElementById('btn-leave-lobby')) {
+        const leaveBtn = document.createElement('button');
+        leaveBtn.id = 'btn-leave-lobby';
+        leaveBtn.className = 'btn-leave';
+        leaveBtn.innerText = 'Lobby verlassen';
+        leaveBtn.onclick = leaveGame;
+        elements.lobbyQR.parentNode.appendChild(leaveBtn);
+        // Or append elsewhere? lobby-container seems best.
+        // Actually let's put it at the bottom of the container
+        document.querySelector('#waiting-room-view .lobby-container').appendChild(leaveBtn);
+    }
+}
+
+function leaveGame() {
+    if (!appState.gameId || !appState.playerId) {
+        location.reload();
+        return;
+    }
+
+    const gameRef = db.ref(`games/${appState.gameId}`);
+
+    if (appState.isHost) {
+        // Host leaves -> Delete Game OR just remove host? 
+        // User requested: "Logik, die die Spiele automatisch aus firebase löscht, wenn ein spiel verlassen wird"
+        // Interpreted as: If everyone leaves OR host leaves (since host owns logic), delete it.
+        // Simplest for now: Host leaves = Game Over.
+        gameRef.remove();
+    } else {
+        // Client leaves
+        gameRef.child(`players/${appState.playerId}`).remove();
+    }
+
+    // Reset local state
+    clearSession();
+    location.reload();
+}
+
+// ... existing code ...
+
+function startGameAction() {
+    if (!appState.isHost) return;
+
+    // Generate Grid
+    generateGrid(appState.gridSize);
+    const solutions = findSolutions(appState.gridData, appState.gridSize, appState.difficulty);
+
+    if (solutions.length === 0) {
+        console.warn("Retrying gen...");
+        startGameAction();
+        return;
+    }
+
+    const randomSol = solutions[Math.floor(Math.random() * solutions.length)];
+    appState.target = randomSol.result;
+    appState.currSolutions = solutions;
+
+    // Update DB -> Triggers start for everyone
+    db.ref(`games/${appState.gameId}`).update({
+        grid: appState.gridData,
+        target: appState.target,
+        state: 'playing'
+    });
+}
+
+// --- Listeners ---
+
+function subscribeToGame(gameId) {
+    const gameRef = db.ref(`games/${gameId}`);
+
+    // 1. Status Check (Waiting -> Playing)
+    gameRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (!data) return;
+
+        // Settings Sync
+        if (data.settings) {
+            appState.gridSize = data.settings.gridSize;
+            appState.difficulty = data.settings.difficulty;
+        }
+
+        // State Transition
+        if (data.state === 'playing' && appState.currentView !== 'game') {
+            switchView('game');
+        }
+
+        // Data Sync
+        if (data.grid) {
+            const strGrid = JSON.stringify(data.grid);
+            if (strGrid !== JSON.stringify(appState.gridData)) {
+                appState.gridData = data.grid;
+                renderGrid();
+            }
+        }
+        if (data.target) {
+            if (appState.target !== data.target) {
+                appState.target = data.target;
+                elements.targetNumber.innerText = appState.target;
+                if (appState.isHost) db.ref(`games/${gameId}/veto`).remove();
+            }
+        }
+
+        // Players Sync
+        if (data.players) {
+            appState.players = data.players;
+
+            renderLobbySlots(data.players);
+            renderPlayersList(data.players);
+
+            const myData = data.players[appState.playerId];
+            if (myData && myData.lockedUntil) {
+                if (myData.lockedUntil > Date.now()) appState.lockedUntil = myData.lockedUntil;
+                else appState.lockedUntil = null;
+            }
+            if (data.veto) updateVetoUI(data.veto, Object.keys(data.players).length);
+            if (appState.isHost && data.veto) checkVetoThreshold(data.veto, Object.keys(data.players).length);
+        }
+
+        if (appState.isHost && data.attempts) handleAttemptsHost(data.attempts);
+    });
+
+    // Buzzer unique listener
+    gameRef.child('status').on('value', snap => {
+        const status = snap.val();
+        if (status && status.buzzerOwner) handleBuzzerOwnerChange(status.buzzerOwner, status.timestamp);
+        else resetBuzzerState();
+    });
+}
+
+// --- Gameplay Logic ---
+
+function handleBuzzerClick() {
+    if (!appState.gameId) return;
+
+    // Check Lock
+    const now = Date.now();
+    if (appState.lockedUntil && now < appState.lockedUntil) {
+        const wait = Math.ceil((appState.lockedUntil - now) / 1000);
+        alert(`Du bist noch ${wait}s gesperrt!`);
+        return;
+    }
+    if (appState.isLocked && appState.buzzerOwner !== appState.playerId) return;
+
+    // Firebase Transaction to claim buzzer
+    const gameRef = db.ref(`games/${appState.gameId}`);
+
+    gameRef.child('status').transaction((currentStatus) => {
+        if (!currentStatus || !currentStatus.buzzerOwner) {
+            return { buttonOwner: appState.playerId, timestamp: firebase.database.ServerValue.TIMESTAMP, buzzerOwner: appState.playerId };
+        }
+        return undefined;
+    }, (error, committed) => {
+        if (committed) console.log('Buzzer claimed!');
+    });
+}
+
+function handleBuzzerOwnerChange(ownerId, timestamp) {
+    appState.buzzerOwner = ownerId;
+    const isMe = (ownerId === appState.playerId);
+
+    if (isMe) {
+        buttons.buzzer.innerText = "WÄHLE 3 ZAHLEN!";
+        buttons.buzzer.classList.add('active-buzzer');
+        buttons.buzzer.disabled = false;
+        appState.isLocked = false;
+    } else {
+        const ownerName = appState.players[ownerId]?.name || 'Jemand';
+        buttons.buzzer.innerText = `${ownerName} RECHNET...`;
+        buttons.buzzer.classList.remove('active-buzzer');
+        buttons.buzzer.disabled = true;
+        appState.isLocked = true;
+    }
+}
+
+function resetBuzzerState() {
+    appState.buzzerOwner = null;
+    appState.isLocked = false;
+    appState.selectedCells = [];
+    updateGridSelection();
+
+    buttons.buzzer.innerText = "TRIO!";
+    buttons.buzzer.classList.remove('active-buzzer');
+    buttons.buzzer.disabled = false;
+
+    // Check local lock
+    if (appState.lockedUntil && appState.lockedUntil > Date.now()) {
+        const wait = Math.ceil((appState.lockedUntil - Date.now()) / 1000);
+        buttons.buzzer.innerText = `GESPERRT (${wait}s)`;
+        buttons.buzzer.disabled = true;
     }
 }
 
 function handleCellClick(e) {
+    if (appState.buzzerOwner !== appState.playerId) return;
+
     const cell = e.target;
-    // Toggle selection visual
-    cell.classList.toggle('selected');
+    const index = parseInt(cell.dataset.index);
+    const existingIdx = appState.selectedCells.indexOf(index);
+
+    if (existingIdx !== -1) {
+        appState.selectedCells = appState.selectedCells.filter(i => i !== index);
+        updateGridSelection();
+        return;
+    }
+
+    if (appState.selectedCells.length >= 3) return;
+
+    if (appState.selectedCells.length === 0) {
+        appState.selectedCells.push(index);
+    } else {
+        const lastIdx = appState.selectedCells[appState.selectedCells.length - 1];
+        if (isNeighbor(lastIdx, index)) {
+            if (appState.selectedCells.length === 2) {
+                if (isLinear(appState.selectedCells[0], appState.selectedCells[1], index)) {
+                    appState.selectedCells.push(index);
+                }
+            } else {
+                appState.selectedCells.push(index);
+            }
+        }
+    }
+
+    updateGridSelection();
+
+    if (appState.selectedCells.length === 3) {
+        openCalculationModal();
+    }
 }
 
-// Initialize on load
+function isNeighbor(idx1, idx2) {
+    const s = appState.gridSize;
+    const r1 = Math.floor(idx1 / s), c1 = idx1 % s;
+    const r2 = Math.floor(idx2 / s), c2 = idx2 % s;
+    return (Math.abs(r1 - r2) + Math.abs(c1 - c2)) === 1;
+}
+
+function isLinear(idx1, idx2, idx3) {
+    const s = appState.gridSize;
+    const r1 = Math.floor(idx1 / s), c1 = idx1 % s;
+    const r2 = Math.floor(idx2 / s), c2 = idx2 % s;
+    const r3 = Math.floor(idx3 / s), c3 = idx3 % s;
+    const allSameRow = (r1 === r2 && r2 === r3);
+    const allSameCol = (c1 === c2 && c2 === c3);
+    return allSameRow || allSameCol;
+}
+
+function updateGridSelection() {
+    const cells = document.querySelectorAll('.grid-cell');
+    cells.forEach(c => {
+        const idx = parseInt(c.dataset.index);
+        c.classList.remove('selected', 'dimmed', 'highlight-neighbor');
+        c.style.opacity = '1';
+
+        if (appState.selectedCells.includes(idx)) {
+            c.classList.add('selected');
+        } else if (appState.selectedCells.length > 0) {
+            // Dim check
+            const lastIdx = appState.selectedCells[appState.selectedCells.length - 1];
+            let isValid = isNeighbor(lastIdx, idx);
+            if (appState.selectedCells.length === 2 && isValid) {
+                isValid = isLinear(appState.selectedCells[0], appState.selectedCells[1], idx);
+            }
+
+            if (isValid && appState.selectedCells.length < 3) {
+                c.classList.add('highlight-neighbor');
+            } else {
+                c.classList.add('dimmed');
+                c.style.opacity = '0.4';
+            }
+        }
+    });
+}
+
+// --- Calculation Modal ---
+
+let modalState = { formula: '', usedIndices: [] };
+
+function openCalculationModal() {
+    const modal = document.getElementById('calc-modal');
+    modal.classList.add('active');
+
+    // Ensure styles are visible
+    modal.style.display = 'flex'; // Force flex in case class toggle fails with specificity
+
+    const numPad = document.getElementById('modal-numpad');
+    numPad.innerHTML = '';
+    modalState.formula = '';
+    modalState.usedIndices = [];
+    updateFormulaDisplay();
+
+    appState.selectedCells.forEach(idx => {
+        const num = appState.gridData[idx];
+        const btn = document.createElement('button');
+        btn.className = 'btn-calc num-btn';
+        btn.innerText = num;
+        btn.dataset.index = idx;
+        btn.onclick = () => handleNumClick(num, idx, btn);
+        numPad.appendChild(btn);
+    });
+
+    document.getElementById('btn-solve').onclick = submitSolution;
+    document.querySelectorAll('.btn-calc.op').forEach(b => {
+        b.onclick = () => handleOpClick(b.dataset.op);
+    });
+    document.getElementById('btn-backspace').onclick = handleBackspace;
+    document.getElementById('btn-clear').onclick = () => {
+        modalState.formula = ''; modalState.usedIndices = []; updateFormulaDisplay();
+        document.querySelectorAll('.num-btn').forEach(b => b.classList.remove('used'));
+    };
+}
+
+function closeCalculationModal() {
+    document.getElementById('calc-modal').classList.remove('active');
+    document.getElementById('calc-modal').style.display = '';
+    appState.selectedCells = [];
+    updateGridSelection();
+
+    // Explicit release if we cancel?
+    // User might just close tab. We need penalty on timeout or explict cancel button?
+    // For now simple close logic.
+}
+
+function handleNumClick(num, idx, btn) {
+    if (modalState.usedIndices.includes(idx)) return;
+    modalState.formula += num;
+    modalState.usedIndices.push(idx);
+    btn.classList.add('used');
+    updateFormulaDisplay();
+}
+
+function handleOpClick(op) { modalState.formula += op; updateFormulaDisplay(); }
+function handleBackspace() { modalState.formula = modalState.formula.slice(0, -1); updateFormulaDisplay(); }
+function updateFormulaDisplay() { document.getElementById('formula-display').innerText = modalState.formula; }
+
+function submitSolution() {
+    if (!modalState.formula) return;
+    try { calculateFormula(modalState.formula); } catch (e) { alert("Invalid"); return; }
+
+    const attempt = {
+        playerId: appState.playerId,
+        indices: appState.selectedCells,
+        formula: modalState.formula,
+        target: appState.target
+    };
+
+    db.ref(`games/${appState.gameId}/attempts`).push(attempt);
+    closeCalculationModal();
+}
+
+function calculateFormula(str) {
+    if (/[^0-9+\-*/().\s]/.test(str)) throw new Error("Invalid chars");
+    return Function(`'use strict'; return (${str})`)();
+}
+
+function handleAttemptsHost(attemptsDict) {
+    // Usually child_added listener handles this. 
+    // We attach it once.
+}
+
+let attemptsListenerAttached = false;
+function attachHostLogic(gameId) {
+    if (attemptsListenerAttached) return;
+    attemptsListenerAttached = true;
+    db.ref(`games/${gameId}/attempts`).on('child_added', snapshot => {
+        validateAttempt(snapshot.val(), snapshot.key);
+    });
+}
+// Attach on create
+// Modified: We call this if appState.isHost inside subscribe or create
+// Let's call it in subscribe loop if isHost and not attached
+
+function validateAttempt(attempt, attemptKey) {
+    const gameRef = db.ref(`games/${appState.gameId}`);
+    let valid = false;
+    try {
+        const result = calculateFormula(attempt.formula);
+        if (Math.abs(result - attempt.target) < 0.001) valid = true;
+    } catch (e) { }
+
+    if (valid) {
+        gameRef.child(`players/${attempt.playerId}/score`).transaction(score => (score || 0) + 1);
+        gameRef.child('status').set(null);
+        // New Target
+        startGameAction(); // Re-use generator (generates new target/grid? No just target usually?)
+        // Instructions said "Neue Zielzahl". startGameAction regenerates Grid too?
+        // Let's split it.
+        // Actually for Trio, Grid stays same usually? Prompt didn't specify. 
+        // "Wenn >50% Veto... Host Algorithmus neue Zielzahl".
+        // Let's imply Grid stays, Target changes.
+        generateNewTarget();
+    } else {
+        const lockTime = Date.now() + 5000;
+        gameRef.child(`players/${attempt.playerId}/lockedUntil`).set(lockTime);
+        gameRef.child('status').set(null);
+    }
+    db.ref(`games/${appState.gameId}/attempts/${attemptKey}`).remove();
+}
+
+function generateNewTarget() {
+    // Only target
+    if (!appState.currSolutions || appState.currSolutions.length === 0) {
+        // Find solutions if missing
+        appState.currSolutions = findSolutions(appState.gridData, appState.gridSize, appState.difficulty);
+    }
+    const s = appState.currSolutions;
+    if (s.length > 0) {
+        const t = s[Math.floor(Math.random() * s.length)].result;
+        db.ref(`games/${appState.gameId}`).update({ target: t, veto: null });
+    } else {
+        // No solutions? Regenerate Grid
+        startGameAction();
+    }
+}
+
+// --- Helpers + Renderers (Unified) ---
+
+function updateVetoUI(vetoMap, totalPlayers) {
+    let vetoEl = document.getElementById('veto-counter');
+    if (!vetoEl) {
+        vetoEl = document.createElement('div');
+        vetoEl.id = 'veto-counter';
+        // Styling...
+        if (elements.targetNumber && elements.targetNumber.parentNode)
+            elements.targetNumber.parentNode.appendChild(vetoEl);
+
+        const btn = document.createElement('button');
+        btn.innerText = "Zielzahl wechseln";
+        btn.className = 'btn-secondary';
+        btn.style.marginTop = '10px';
+        btn.onclick = () => {
+            db.ref(`games/${appState.gameId}/veto/${appState.playerId}`).set(true);
+        };
+        if (elements.targetNumber && elements.targetNumber.parentNode)
+            elements.targetNumber.parentNode.appendChild(btn);
+    }
+    vetoEl.innerText = `${Object.keys(vetoMap).length}/${Math.ceil(totalPlayers / 2) + 1} Stimmen`;
+}
+
+function checkVetoThreshold(vetoMap, totalPlayers) {
+    if (Object.keys(vetoMap).length > totalPlayers * 0.5) generateNewTarget();
+}
+
+function generateGrid(size) {
+    const totalCells = size * size;
+    appState.gridData = [];
+    for (let i = 0; i < totalCells; i++) appState.gridData.push(Math.floor(Math.random() * 20) + 1);
+}
+
+function getNumberColor(num) {
+    const hue = (num * (360 / 20)) % 360;
+    return `hsl(${hue}, 70%, 50%)`;
+}
+
+function findSolutions(grid, size, difficulty) {
+    const solutions = [];
+    const addSol = (nums, result) => { if (Number.isInteger(result) && result > 0 && result < 200) solutions.push({ result, nums }); };
+
+    // Simple Loop (Reuse earlier logic)
+    for (let row = 0; row < size; row++) {
+        for (let col = 0; col < size - 2; col++) {
+            const idx = row * size + col;
+            tryAdd([grid[idx], grid[idx + 1], grid[idx + 2]], difficulty, addSol);
+        }
+    }
+    for (let col = 0; col < size; col++) {
+        for (let row = 0; row < size - 2; row++) {
+            const idx = row * size + col;
+            tryAdd([grid[idx], grid[idx + size], grid[idx + size * 2]], difficulty, addSol);
+        }
+    }
+    return solutions;
+}
+
+function tryAdd(triplet, diff, addSol) {
+    const [a, b, c] = triplet;
+    if (diff === 'easy') { addSol(triplet, a * b + c); addSol(triplet, a * b - c); }
+    else {
+        // simplified hard/med
+        const ops = ['+', '-', '*', '/'];
+        // Permutations 
+        const perms = [[a, b, c], [a, c, b], [b, a, c], [b, c, a], [c, a, b], [c, b, a]];
+        perms.forEach(p => {
+            ops.forEach(o1 => ops.forEach(o2 => {
+                try { addSol(triplet, eval(`${p[0]}${o1}${p[1]}${o2}${p[2]}`)); } catch (e) { }
+            }));
+        });
+    }
+}
+
+function renderLobbySlots(players) {
+    const container = document.getElementById('lobby-player-slots');
+    if (!container) return; // Safety
+    container.innerHTML = '';
+
+    const list = players ? Object.values(players) : [];
+
+    // Update Badge
+    const badge = document.getElementById('player-count');
+    if (badge) badge.innerText = list.length;
+
+    // Render occupied slots
+    list.forEach(p => {
+        const slot = document.createElement('div');
+        slot.className = 'lobby-slot occupied';
+        slot.innerText = p.name;
+        if (p.isHost) {
+            slot.style.border = '2px solid var(--warning)';
+            slot.innerHTML += ' 👑';
+        }
+        container.appendChild(slot);
+    });
+}
+
+function renderPlayersList(players) {
+    const container = document.getElementById('players-container');
+    if (!container) return; // Safety
+    container.innerHTML = '';
+
+    const list = players ? Object.values(players) : [];
+    list.sort((a, b) => (b.score || 0) - (a.score || 0));
+
+    list.forEach(p => {
+        const item = document.createElement('div');
+        item.className = 'player-item';
+        if (p.isHost) item.style.borderLeft = "3px solid var(--warning)";
+
+        item.innerHTML = `
+            <span>${p.name} ${p.isHost ? '👑' : ''}</span>
+            <span class="player-score">${p.score || 0}</span>
+        `;
+        container.appendChild(item);
+    });
+}
+
+function renderGrid() {
+    const grid = document.getElementById('game-grid');
+    grid.innerHTML = '';
+
+    // Auto Grid Size styling
+    grid.style.gridTemplateColumns = `repeat(${appState.gridSize}, 1fr)`;
+
+    appState.gridData.forEach((num, index) => {
+        const cell = document.createElement('div');
+        cell.className = 'grid-cell';
+        cell.dataset.index = index;
+        cell.innerText = num;
+        cell.onclick = (e) => handleCellClick(e);
+        cell.style.color = getNumberColor(num);
+        grid.appendChild(cell);
+    });
+    updateGridSelection();
+}
+
+// Start App
 document.addEventListener('DOMContentLoaded', init);
