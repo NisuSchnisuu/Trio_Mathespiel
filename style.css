@@ -111,6 +111,7 @@ button {
     border: none;
     outline: none;
     transition: all 0.2s ease;
+    touch-action: manipulation;
 }
 
 input,

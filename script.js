@@ -80,6 +80,11 @@ function switchView(viewName) {
         views[viewName].classList.add('active');
     }
     // Note: Back buttons are now embedded in views, no global toggle needed
+
+    // Auto-Save Session on view change if game is active
+    if (appState.gameId && appState.playerId) {
+        saveSession();
+    }
 }
 
 // --- Persistence Helpers ---
@@ -91,7 +96,8 @@ function saveSession() {
             isHost: appState.isHost,
             isHost: appState.isHost,
             playerName: appState.playerName,
-            difficulty: appState.difficulty
+            difficulty: appState.difficulty,
+            currentView: appState.currentView
         };
         localStorage.setItem('trio_session', JSON.stringify(session));
     }
@@ -116,12 +122,16 @@ function checkSession() {
                 appState.playerName = session.playerName;
                 if (session.difficulty) appState.difficulty = session.difficulty;
 
-                // Attempt Reconnect
+                console.log("Restoring session:", session);
                 subscribeToGame(appState.gameId);
-                // Check if we are playing or waiting?
-                // subscribeToGame handles view switch based on 'state'
-                // But we default to waiting room initially
-                enterWaitingRoom();
+
+                // Optimistic View Restore
+                if (session.currentView) {
+                    console.log("Optimistic Switch to:", session.currentView);
+                    if (session.currentView === 'game') switchView('game');
+                    else if (session.currentView === 'waiting') enterWaitingRoom();
+                }
+
                 return true;
             }
         } catch (e) {
@@ -346,8 +356,8 @@ function createGame(playerName) {
             subscribeToGame(appState.gameId);
             enterWaitingRoom();
             saveSession();
-
-            gameRef.onDisconnect().remove();
+            // Disabling auto-delete on disconnect to allow Reloads!
+            // gameRef.onDisconnect().remove(); 
         });
     });
 }
@@ -381,7 +391,8 @@ function joinGame(gameId, playerName) {
             saveSession(); // Save session
 
             // Auto-remove player if client disconnects
-            playerRef.onDisconnect().remove();
+            // Disabling to allow reloads. 
+            // playerRef.onDisconnect().remove();
         });
     });
 }
@@ -521,12 +532,14 @@ function startGameAction() {
 // --- Listeners ---
 
 function subscribeToGame(gameId) {
+    console.log("Subscribing to game:", gameId);
     const gameRef = db.ref(`games/${gameId}`);
 
     // 1. Status Check (Waiting -> Playing)
     // 1. Status Check (Waiting -> Playing)
     gameRef.on('value', (snapshot) => {
         const data = snapshot.val();
+        console.log("Game Data received:", data);
 
         // Host Disconnected / Game Ended
         // Host Disconnected / Game Ended
@@ -567,6 +580,8 @@ function subscribeToGame(gameId) {
         if (data.state === 'playing' && appState.currentView !== 'game') {
             switchView('game');
             forceRender = true; // Force render since view just appeared
+        } else if (data.state === 'waiting' && appState.currentView !== 'waiting') {
+            enterWaitingRoom();
         }
 
         // Data Sync
@@ -1101,7 +1116,25 @@ function populateModalButtons(preserveFormula = false) {
     if (!preserveFormula) {
         modalState.formula = '';
         modalState.usedIndices = [];
+        modalState.usedIndices = [];
         modalState.history = []; // Clear history
+    } else {
+        // Attempt to reconstruct history from formula string for validation context
+        // This is a naive reconstruction: If last char is digit, assume last was 'num'.
+        // If last char is op, assume last was 'op'.
+        // This is enough for "No Double Operator" and "No Double Number" checks.
+        if (!modalState.history) modalState.history = [];
+        if (modalState.formula.length > 0) {
+            const lastChar = modalState.formula.slice(-1);
+            const isDigit = /[0-9]/.test(lastChar);
+            // Push a dummy history item to set context
+            // We don't need full idx since we can't easily map back, but 'type' is what matters.
+            modalState.history.push({
+                type: isDigit ? 'num' : 'op',
+                idx: -1,
+                dummy: true
+            });
+        }
     }
     // If preserving, we keep formula but we might need to recalc usedIndices?
     // Actually formula string doesn't tell us used indicies easily unless we parse.
