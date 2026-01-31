@@ -1271,62 +1271,75 @@ function handleOpClick(op, btn) {
 
     const prev = modalState.formula;
 
-    // RULE: Start with Number (or '(' if visible/allowed, but we treat '(' as op here)
-    // Actually, user said: "als erstes immer ein Zahl angeklickt werden muss". 
-    // This implies even '(' is not allowed first? Or maybe just no operators like +, -, *, /.
-    // If we hide parens in normal, fine. In advanced, maybe ( is allowed.
-    // But let's check history length.
+    // RULE: Start with Number validations (handled by history check)
+    // If first input, MUST be a number?
     if (!modalState.history || modalState.history.length === 0) {
-        // If first input, MUST be a number?
-        // Exception: '(' is okay if not normal mode?
-        // User said: "man nie 2 operationszeichen (ausser klammern) nacheinander in die Rechnung einfügen kann."
-        // And "als erstes immer ein Zahl". This is strong.
-        // Let's enforce "Start with Number OR (" if strictly speaking. But in Normal mode, only Numbers visible.
-        // In Normal Mode, start with Number.
-        // If I click '+' first -> FLASH.
         if (op !== '(') {
             if (btn) flashInvalidElement(btn);
             return;
         }
     }
 
-    // RULE: Normal/Advanced Mode - Max 1 +/-
-    // "Es erzwingt nicht...". Ensuring UI blocks second + or -.
-    if ((appState.difficulty === 'normal' || appState.difficulty === 'advanced') && ['+', '-'].includes(op)) {
-        if (modalState.formula.includes('+') || modalState.formula.includes('-')) {
+    // --- VALIDATION & FEEDBACK LOGIC ---
+
+    // Helper to flash existing operator in display
+    const flashExistingOp = (opsToFind) => {
+        const spans = document.getElementById('formula-display').querySelectorAll('.char-op');
+        spans.forEach(span => {
+            if (opsToFind.includes(span.dataset.char)) {
+                flashInvalidElement(span);
+            }
+        });
+    };
+
+    const hasPlus = modalState.formula.includes('+');
+    const hasMinus = modalState.formula.includes('-');
+    const hasMult = modalState.formula.includes('*');
+    const hasDiv = modalState.formula.includes('/');
+
+    // 1. Line Operator Conflict (+/-)
+    if (['+', '-'].includes(op)) {
+        if (hasPlus || hasMinus) {
             if (btn) flashInvalidElement(btn);
+            flashExistingOp(['+', '-']);
             return;
         }
     }
 
-    // Single use restriction for operators (except parens)
-    if (['+', '-', '*', '/'].includes(op) && modalState.formula.includes(op)) {
-        if (btn) flashInvalidElement(btn);
-        return; // Already used
+    // 2. Point Operator Conflict (* or /) - Validation depends on Difficulty
+    if (['*', '/'].includes(op)) {
+        // In Normal/Advanced, only ONE point op is allowed usually?
+        // Normal: (A * B) +/- C.  One *.
+        // Advanced: (A / B) +/- C. One /.
+        // Profi: Mixed. One Point, One Line. So One Point max.
+        // So in ALL modes, max 1 Point op is a safe rule based on game design?
+        // Let's assume yes: "never 2 operationszeichen" implies structure limit?
+        // Actually, the user prompts specifically asked for "Kombination von */: mit +/-".
+        // This implicitly limits to one of each pair type for Profi too.
+
+        if (hasMult || hasDiv) {
+            if (btn) flashInvalidElement(btn);
+            flashExistingOp(['*', '/']);
+            return;
+        }
     }
 
-    // RULE: No 2 operators in a row (except parens)
+    // 3. Consecutive Operators (except parens)
     if (modalState.history && modalState.history.length > 0) {
         const last = modalState.history[modalState.history.length - 1];
         if (last.type === 'op' && ['+', '-', '*', '/'].includes(last.op) && ['+', '-', '*', '/'].includes(op)) {
-            // "ausser klammern". 
-            // So + - is bad. + ( is OK? ) + is OK?
-            // User says "ausser klammern". 
-            // If I type "2 + -". Bad.
-            // If I type "2 * (". OK.
-            // If I type "( - ". OK (if allowed start).
             if (btn) flashInvalidElement(btn);
             return;
         }
     }
 
-    // History
+    // History Update
     if (!modalState.history) modalState.history = [];
     modalState.history.push({ type: 'op', prevFormula: prev, op: op });
 
     modalState.formula += op;
 
-    // Visual Feedback
+    // Visual Feedback (mark used if single-use logic applies, which it does for ops in this game)
     if (btn && ['+', '-', '*', '/'].includes(op)) {
         btn.classList.add('used');
     }
@@ -1359,9 +1372,40 @@ function handleClear() {
 }
 
 function updateFormulaDisplay() {
-    // Replace * with · and / with : for display
-    const displayStr = modalState.formula.replace(/\*/g, '·').replace(/\//g, ':');
-    document.getElementById('formula-display').innerText = displayStr;
+    const container = document.getElementById('formula-display');
+    container.innerHTML = ''; // Clear current
+
+    // Parse formula into tokens for granular display
+    // Tokens: Numbers (sequences of digits), Operators, Parens
+    // Regex: Split by boundaries but keep delimiters. 
+    // Actually, we can just iterate chars if we want char-level control, 
+    // OR we can tokenize properly. 
+    // For "12 + 5", we want "12", " ", "+", " ", "5".
+    // But since we built it char by char, maybe we treat each char as a span?
+    // "12" is visually one block usually. But flashing "1" and "2" separately is fine.
+    // However, for operators like "+", it is a single char.
+    // Let's do CHAR based for simplicity and max control.
+
+    const chars = modalState.formula.split('');
+    chars.forEach((char, index) => {
+        const span = document.createElement('span');
+
+        let displayChar = char;
+        if (char === '*') displayChar = '·';
+        if (char === '/') displayChar = ':';
+
+        span.innerText = displayChar;
+        span.dataset.char = char; // Store real value
+        span.dataset.index = index;
+
+        // Styling classes
+        if (['+', '-', '*', '/'].includes(char)) span.className = 'char-op';
+        else if (['(', ')'].includes(char)) span.className = 'char-paren';
+        else if (/[0-9]/.test(char)) span.className = 'char-num';
+        else span.className = 'char-other';
+
+        container.appendChild(span);
+    });
 }
 
 
@@ -1370,8 +1414,9 @@ function submitSolution() {
 
     // Profi Mode Validation: STRICT Parentheses Check
     if (appState.difficulty === 'pro') {
-        const hasOpen = modalState.formula.includes('(');
-        const hasClose = modalState.formula.includes(')');
+        const formula = modalState.formula;
+        const hasOpen = formula.includes('(');
+        const hasClose = formula.includes(')');
 
         if (!hasOpen || !hasClose) {
             // Flash Solve Button
@@ -1385,6 +1430,49 @@ function submitSolution() {
             if (closeBtn) flashInvalidElement(closeBtn);
 
             return;
+        }
+
+        // Rule: Line operation (+/-) must be INSIDE parentheses.
+        // Inverse: Point operation (* or /) inside parentheses is invalid.
+        // We need to extract the content inside outermost parens (assuming simple nesting for now, logic supports single level anyway)
+        // Find indices of parens. 
+        // Note: Currently generated logic is simple structure, so first ( and last ) or first ( and matching ).
+        // A regexp like /\(([^)]+)\)/ can extract inner content.
+
+        const match = formula.match(/\(([^)]+)\)/);
+        if (match) {
+            const innerContent = match[1];
+            // Check if inner content contains * or /
+            if (innerContent.includes('*') || innerContent.includes('/')) {
+                // FAIL
+                const solveBtn = document.getElementById('btn-solve');
+                flashInvalidElement(solveBtn);
+
+                const openBtn = document.querySelector('.btn-calc.op[data-op="("]');
+                const closeBtn = document.querySelector('.btn-calc.op[data-op=")"]');
+                if (openBtn) flashInvalidElement(openBtn);
+                if (closeBtn) flashInvalidElement(closeBtn);
+
+                // Flash the Point Operator in Display
+                const spans = document.getElementById('formula-display').querySelectorAll('.char-op');
+                spans.forEach(span => {
+                    // Check if this span is inside parens? 
+                    // Simple check: Check if its char is * or / AND it's "inside".
+                    // Since we know the rule failed, any * or / inside IS the problem.
+                    // We can check span.dataset.index vs paren indices.
+                    // Let's rely on dataset.char for now, but to be precise we need indices.
+                    const idx = parseInt(span.dataset.index);
+                    const openIdx = formula.indexOf('(');
+                    const closeIdx = formula.indexOf(')'); // First matching close for simple logic
+
+                    if (idx > openIdx && idx < closeIdx) {
+                        if (['*', '/'].includes(span.dataset.char)) {
+                            flashInvalidElement(span);
+                        }
+                    }
+                });
+                return;
+            }
         }
     }
 
