@@ -447,6 +447,7 @@ function subscribeToGame(gameId) {
     const gameRef = db.ref(`games/${gameId}`);
 
     // 1. Status Check (Waiting -> Playing)
+    // 1. Status Check (Waiting -> Playing)
     gameRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (!data) return;
@@ -457,21 +458,25 @@ function subscribeToGame(gameId) {
             appState.difficulty = data.settings.difficulty;
         }
 
+        let forceRender = false;
+
         // State Transition
         if (data.state === 'playing' && appState.currentView !== 'game') {
             switchView('game');
+            forceRender = true; // Force render since view just appeared
         }
 
         // Data Sync
         if (data.grid) {
             const strGrid = JSON.stringify(data.grid);
-            if (strGrid !== JSON.stringify(appState.gridData)) {
+            // If data changed AND/OR we forced a render (e.g. host just started)
+            if (strGrid !== JSON.stringify(appState.gridData) || forceRender) {
                 appState.gridData = data.grid;
                 renderGrid();
             }
         }
         if (data.target) {
-            if (appState.target !== data.target) {
+            if (appState.target !== data.target || forceRender) {
                 appState.target = data.target;
                 elements.targetNumber.innerText = appState.target;
                 if (appState.isHost) db.ref(`games/${gameId}/veto`).remove();
