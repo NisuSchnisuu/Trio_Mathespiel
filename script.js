@@ -832,10 +832,42 @@ function setupQRScanner() {
     let html5QrcodeScanner = null;
 
     if (scanBtn) {
-        scanBtn.addEventListener('click', () => {
+        scanBtn.addEventListener('click', async () => {
             qrModal.classList.add('active');
 
-            // Init Scanner
+            // Explicit Permission Request Logic
+            try {
+                // Check if API is available
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error("Browser API not available (Non-Secure Context?)");
+                }
+
+                // Request Permission explicitly first
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+
+                // If successful, stop this stream immediately to release camera for the library
+                stream.getTracks().forEach(track => track.stop());
+
+            } catch (err) {
+                console.warn("Permission check failed:", err);
+                const isSecure = window.isSecureContext;
+                let msg = "Kamera-Zugriff verweigert oder nicht unterstützt.";
+                if (!isSecure) {
+                    msg += "\n\n⚠️ HINWEIS: Auf mobilen Geräten funktioniert die Kamera nur über HTTPS oder Localhost. Wenn du über eine IP-Adresse zugreifst, blockiert der Browser die Kamera.";
+                } else {
+                    msg += "\nBitte Kamera-Berechtigung in den Browser-Einstellungen prüfen.";
+                }
+                alert(msg);
+                // We still try to start the scanner below, just in case the check was a false negative or library handles it differently,
+                // BUT usually if getUserMedia fails, the library will fail too. 
+                // Let's return here to avoid double error alerts? 
+                // User asked "Can we request permission first?". 
+                // If this catch block is hit, permission was denied or not possible.
+                qrModal.classList.remove('active');
+                return;
+            }
+
+            // Init Scanner Library
             if (!html5QrcodeScanner) {
                 html5QrcodeScanner = new Html5Qrcode("reader");
             }
@@ -881,7 +913,8 @@ function setupQRScanner() {
                 // parse error, ignore
             }).catch(err => {
                 console.error("Error starting scanner", err);
-                alert("Kamera konnte nicht gestartet werden. Bitte Berechtigung prüfen.");
+                // This catch might still be hit if something else is wrong
+                alert("Fehler beim Starten des Scanners: " + err);
                 qrModal.classList.remove('active');
             });
         });
