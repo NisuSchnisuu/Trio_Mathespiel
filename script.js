@@ -14,7 +14,10 @@ const inputs = {
     playerName: document.getElementById('player-name'),
     joinCode: document.getElementById('join-code'),
     gridSize: document.getElementById('grid-size'),
-    difficulty: document.getElementById('difficulty')
+    difficulty: document.getElementById('difficulty'),
+    winningScore: document.getElementById('winning-score'),
+    customScore: document.getElementById('custom-score'),
+    numberRange: document.getElementById('number-range')
 };
 
 const elements = {
@@ -47,16 +50,20 @@ let appState = {
     gridData: [],
     gridSize: 7,
     difficulty: 'medium',
+    gridSize: 7,
+    difficulty: 'medium',
+    winningScore: 10,
     target: 0,
     players: {},
 
     // Gameplay State
     buzzerOwner: null,
     buzzerTimer: null,
-    selectedCells: [], // Array of indices
+    selectedCells: [], // Array of indices (Synced)
     vetoVotes: {},
     isLocked: false,
-    lockedUntil: null
+    lockedUntil: null,
+    penaltyInterval: null
 };
 
 // --- View Management ---
@@ -200,6 +207,18 @@ function setupEventListeners() {
             leaveGame();
         });
     });
+
+    // Winning Score Change Listener
+    if (inputs.winningScore) {
+        inputs.winningScore.addEventListener('change', (e) => {
+            if (e.target.value === 'custom') {
+                inputs.customScore.style.display = 'block';
+                inputs.customScore.focus();
+            } else {
+                inputs.customScore.style.display = 'none';
+            }
+        });
+    }
 }
 
 function handleGlobalBack() {
@@ -281,7 +300,15 @@ function createGame(playerName) {
         appState.isHost = true;
         appState.difficulty = inputs.difficulty.value;
         appState.gridSize = parseInt(inputs.gridSize.value);
+        appState.numberRange = inputs.numberRange ? inputs.numberRange.value : 'base';
         appState.gameId = shortId;
+
+        let wScore = parseInt(inputs.winningScore.value);
+        if (inputs.winningScore.value === 'custom') {
+            wScore = parseInt(inputs.customScore.value);
+        }
+        if (!wScore || wScore < 1) wScore = 10; // Fallback
+        appState.winningScore = wScore;
 
         // Host Player ID (still needs to be unique inside the game)
         // We can use a simple random string for player ID too since it's local scope
@@ -294,7 +321,11 @@ function createGame(playerName) {
             state: 'waiting',
             settings: {
                 difficulty: appState.difficulty,
-                gridSize: appState.gridSize
+                gridSize: appState.gridSize,
+                difficulty: appState.difficulty,
+                gridSize: appState.gridSize,
+                winningScore: appState.winningScore,
+                numberRange: appState.numberRange || 'base'
             },
             hostId: appState.playerId,
             createdAt: firebase.database.ServerValue.TIMESTAMP
@@ -507,6 +538,7 @@ function subscribeToGame(gameId) {
         if (data.settings) {
             appState.gridSize = data.settings.gridSize;
             appState.difficulty = data.settings.difficulty;
+            if (data.settings.winningScore) appState.winningScore = data.settings.winningScore;
         }
 
         let forceRender = false;
@@ -524,6 +556,11 @@ function subscribeToGame(gameId) {
             if (strGrid !== JSON.stringify(appState.gridData) || forceRender) {
                 appState.gridData = data.grid;
                 renderGrid();
+
+                // If Modal is open, we might need to repopulate buttons now that grid is here!
+                if (document.getElementById('calc-modal').classList.contains('active')) {
+                    populateModalButtons(true);
+                }
             }
         }
         if (data.target) {
@@ -531,6 +568,11 @@ function subscribeToGame(gameId) {
             if (appState.target !== data.target || forceRender) {
                 appState.target = data.target;
                 elements.targetNumber.innerText = appState.target;
+
+                // Update Modal Target if open
+                const modalTarget = document.getElementById('modal-target-display');
+                if (modalTarget) modalTarget.innerText = `Ziel: ${appState.target}`;
+
                 if (appState.isHost) db.ref(`games/${gameId}/veto`).remove();
             }
         }
@@ -555,22 +597,144 @@ function subscribeToGame(gameId) {
 
             const myData = data.players[appState.playerId];
             if (myData && myData.lockedUntil) {
-                if (myData.lockedUntil > Date.now()) appState.lockedUntil = myData.lockedUntil;
+                if (myData.lockedUntil > Date.now()) {
+                    appState.lockedUntil = myData.lockedUntil;
+                    startPenaltyCountdown();
+                }
                 else appState.lockedUntil = null;
             }
             if (data.veto) updateVetoUI(data.veto, Object.keys(data.players).length);
             if (appState.isHost && data.veto) checkVetoThreshold(data.veto, Object.keys(data.players).length);
         }
 
-        if (appState.isHost && data.attempts) handleAttemptsHost(data.attempts);
+        if (appState.isHost) {
+            attachHostLogic(gameId);
+        }
+
+        if (data.winner) {
+            handleGameWin(data.winner, data.players);
+        }
     });
 
+    // Real-Time Selection Sync
+    gameRef.child('status/selection').on('value', snap => {
+        const sel = snap.val() || [];
+        // Only update if DIFFERENT to avoid jitter if loopback
+        if (JSON.stringify(sel) !== JSON.stringify(appState.selectedCells)) {
+            appState.selectedCells = sel;
+            updateGridSelection();
+
+            // If modal is open but buttons missing (Reload case), repopulate
+            const modal = document.getElementById('calc-modal');
+            if (modal.classList.contains('active') && sel.length > 0) {
+                populateModalButtons(true); // Preserve formula
+            }
+        }
+    });
+
+    // Real-Time Modal Sync
+    gameRef.child('status/modal').on('value', snap => {
+        const modalState = snap.val();
+        if (modalState) {
+            // Ensure grid selected cells are ready?
+            // If not, we wait for selection sync to trigger repopulate.
+            handleModalSync(modalState);
+        } else {
+            closeCalculationModal(false); // Ensure close if null
+        }
+    });
+
+    // Result Sync (Popup)
+    gameRef.child('status/result').on('value', snap => {
+        const res = snap.val();
+        if (res && res.timestamp > (Date.now() - 5000)) { // Only recent
+            handleResultSync(res);
+            // Verify modal closes for everyone?
+            // Host logic sets status/modal to false implicitly by clearing status?
+            // No, status/modal is separate.
+            // We should ensure modal closes.
+            closeCalculationModal(false);
+        }
+    });
     // Buzzer unique listener
     gameRef.child('status').on('value', snap => {
         const status = snap.val();
-        if (status && status.buzzerOwner) handleBuzzerOwnerChange(status.buzzerOwner, status.timestamp);
-        else resetBuzzerState();
+        if (status && status.buzzerOwner) {
+            if (appState.buzzerOwner !== status.buzzerOwner) {
+                handleBuzzerOwnerChange(status.buzzerOwner, status.timestamp);
+            }
+        } else {
+            if (appState.buzzerOwner !== null) {
+                resetBuzzerState();
+            }
+        }
     });
+}
+
+function handleResultSync(res) {
+    const pName = appState.players[res.playerId]?.name || 'Spieler';
+    const isMe = (res.playerId === appState.playerId);
+
+    let title, msg;
+    if (res.correct) {
+        title = "KORREKT! 🎉";
+        if (isMe) msg = "Super! Du hast richtig gerechnet (+1 Punkt).";
+        else msg = `Mist! ${pName} hat richtig gerechnet (${res.formula} = ${res.result}).`;
+    } else {
+        title = "FALSCH! ❌";
+        if (isMe) msg = "Das war leider falsch! Du bist für 20s gesperrt.";
+        else msg = `Puh! ${pName} hat falsch gerechnet. Chance für euch!`;
+    }
+
+    // Auto-close after 3s
+    showModal(title, msg, null, true, "OK");
+    setTimeout(() => {
+        const m = document.getElementById('app-modal');
+        if (m.classList.contains('active')) m.classList.remove('active');
+    }, 3000);
+}
+
+function handleGameWin(winnerId, players) {
+    const winnerName = players[winnerId]?.name || "Unbekannt";
+    const isMe = winnerId === appState.playerId;
+
+    showModal(
+        "SPIEL VORBEI! 🏆",
+        isMe ? "Glückwunsch! Du hast gewonnen!" : `${winnerName} hat gewonnen!`,
+        () => {
+            // "OK" action -> Return to lobby? or just close?
+            // If Host, maybe reset game?
+            if (appState.isHost) {
+                // Reset Game
+                db.ref(`games/${appState.gameId}`).update({
+                    state: 'waiting',
+                    winner: null,
+                    grid: null, // clear grid
+                    target: 0,
+                    vote: null
+                });
+                // Reset scores?
+                const updates = {};
+                Object.keys(players).forEach(pid => {
+                    updates[`players/${pid}/score`] = 0;
+                    updates[`players/${pid}/status`] = 'waiting';
+                });
+                db.ref(`games/${appState.gameId}`).update(updates);
+            }
+            switchView('lobby'); // Everyone goes back to lobby/waiting room?
+            // Actually 'waiting' view is the room.
+            enterWaitingRoom();
+        },
+        false,
+        "Zurück zur Lobby",
+        "Schließen", // Cancel text
+        () => {
+            // Just close modal, stay in game view (maybe to chat/see board)
+        }
+    );
+
+
+
 }
 
 // --- Gameplay Logic ---
@@ -596,7 +760,14 @@ function handleBuzzerClick() {
         }
         return undefined;
     }, (error, committed) => {
-        if (committed) console.log('Buzzer claimed!');
+        if (committed) {
+            console.log('Buzzer claimed!');
+            // Initialize Status
+            gameRef.child('status').update({
+                selection: [],
+                modal: { isOpen: false, formula: '' }
+            });
+        }
     });
 }
 
@@ -609,19 +780,84 @@ function handleBuzzerOwnerChange(ownerId, timestamp) {
         buttons.buzzer.classList.add('active-buzzer');
         buttons.buzzer.disabled = false;
         appState.isLocked = false;
+
+        // Only start timer if modal is NOT open
+        if (!document.getElementById('calc-modal').classList.contains('active')) {
+            startSelectionTimer();
+        }
     } else {
         const ownerName = appState.players[ownerId]?.name || 'Jemand';
         buttons.buzzer.innerText = `${ownerName} RECHNET...`;
         buttons.buzzer.classList.remove('active-buzzer');
         buttons.buzzer.disabled = true;
         appState.isLocked = true;
+
+
+        // Clear any local selection timer if it was running (edge case)
+        if (appState.selectionTimer) {
+            clearInterval(appState.selectionTimer);
+            appState.selectionTimer = null;
+        }
     }
+    updateGridSelection(); // Refresh dimming based on new owner
+
+    // Update Modal Read-Only state if open
+    const modal = document.getElementById('calc-modal');
+    if (modal.classList.contains('active')) {
+        if (isMe) modal.classList.remove('read-only');
+        else modal.classList.add('read-only');
+    }
+}
+
+function startSelectionTimer() {
+    if (appState.selectionTimer) clearInterval(appState.selectionTimer);
+
+    let timeLeft = 10;
+    updateBuzzerTimerDisplay(timeLeft);
+
+    appState.selectionTimer = setInterval(() => {
+        timeLeft--;
+        updateBuzzerTimerDisplay(timeLeft);
+
+        if (timeLeft <= 0) {
+            clearInterval(appState.selectionTimer);
+            handleSelectionTimeout();
+        }
+    }, 1000);
+}
+
+function updateBuzzerTimerDisplay(seconds) {
+    if (appState.buzzerOwner === appState.playerId) {
+        buttons.buzzer.innerText = `WÄHLE 3 ZAHLEN! (${seconds})`;
+    }
+}
+
+function handleSelectionTimeout() {
+    if (appState.buzzerOwner !== appState.playerId) return;
+    showMessage("Zu langsam!", "Du hast nicht rechtzeitig ausgewählt. 20s Sperre!");
+
+    // Apply Penalty Logic locally -> Trigger standard failure path
+    // We can reuse the failure part of validateAttempt logic?
+    // Or simpler: Push a fail state or just set lockedUntil directly.
+
+    const gameRef = db.ref(`games/${appState.gameId}`);
+    const lockTime = Date.now() + 20000;
+
+    // Reset state & Lock
+    const updates = {};
+    updates[`players/${appState.playerId}/lockedUntil`] = lockTime;
+    updates['status'] = null; // Clears buzzer owner
+    gameRef.update(updates);
 }
 
 function resetBuzzerState() {
     appState.buzzerOwner = null;
     appState.isLocked = false;
     appState.selectedCells = [];
+    if (appState.selectionTimer) {
+        clearInterval(appState.selectionTimer);
+        appState.selectionTimer = null;
+    }
     updateGridSelection();
 
     buttons.buzzer.innerText = "TRIO!";
@@ -640,98 +876,216 @@ function handleCellClick(e) {
     if (appState.buzzerOwner !== appState.playerId) return;
 
     const cell = e.target;
+    // Handle clicking a dimmed cell -> Reset selection to just this cell if valid (removed per new logic)
+
+    // pointer-events: none handles dimming logic usually, but we removed dimming for "others" only.
+    // If I am owner, nothing is dimmed.
+
     const index = parseInt(cell.dataset.index);
     const existingIdx = appState.selectedCells.indexOf(index);
+    let newSelection = [...appState.selectedCells];
 
+    // Toggle logic
     if (existingIdx !== -1) {
-        appState.selectedCells = appState.selectedCells.filter(i => i !== index);
-        updateGridSelection();
-        return;
-    }
-
-    if (appState.selectedCells.length >= 3) return;
-
-    if (appState.selectedCells.length === 0) {
-        appState.selectedCells.push(index);
+        newSelection = newSelection.filter(i => i !== index);
     } else {
-        const lastIdx = appState.selectedCells[appState.selectedCells.length - 1];
-        if (isNeighbor(lastIdx, index)) {
-            if (appState.selectedCells.length === 2) {
-                if (isLinear(appState.selectedCells[0], appState.selectedCells[1], index)) {
-                    appState.selectedCells.push(index);
-                }
-            } else {
-                appState.selectedCells.push(index);
-            }
+        if (newSelection.length >= 3) {
+            flashInvalidCell(cell);
+            return;
+        }
+
+        // Add tentatively and validate
+        newSelection.push(index);
+
+        if (validateSelection(newSelection)) {
+            // Valid
+        } else {
+            flashInvalidCell(cell);
+            return;
         }
     }
 
-    updateGridSelection();
+    updateSelection(newSelection);
+}
 
-    if (appState.selectedCells.length === 3) {
+function validateSelection(indices) {
+    if (indices.length <= 1) return true;
+
+    const s = appState.gridSize;
+    // 1. Sort geographically (Row then Col) to ensure vectors are consistent
+    const coords = indices.map(idx => {
+        return { r: Math.floor(idx / s), c: idx % s };
+    }).sort((a, b) => (a.r - b.r) || (a.c - b.c));
+
+    // 2. Check Vector Consistency
+    // Get Vector P1 -> P2
+    const dr1 = coords[1].r - coords[0].r;
+    const dc1 = coords[1].c - coords[0].c;
+
+    // Valid Directions:
+    // (0, 1), (1, 0), (1, 1), (1, -1)  <- Standard Neighbors (Dist 1)
+    // (0, 2), (2, 0), (2, 2), (2, -2)  <- Skip 1 (Dist 2)
+    // Basic check: |dr| == |dc| OR dr==0 OR dc==0
+
+    if (Math.abs(dr1) !== Math.abs(dc1) && dr1 !== 0 && dc1 !== 0) return false; // Not linear/diagonal
+    if (Math.max(Math.abs(dr1), Math.abs(dc1)) > 2) return false; // Gap too big (> 1 skipped)
+
+    if (indices.length === 3) {
+        // Get Vector P2 -> P3
+        const dr2 = coords[2].r - coords[1].r;
+        const dc2 = coords[2].c - coords[1].c;
+
+        // Vectors MUST be identical for equidistance and collinearity
+        if (dr1 !== dr2 || dc1 !== dc2) return false;
+    }
+
+    return true;
+}
+
+function flashInvalidCell(cell) {
+    cell.classList.add('invalid-flash');
+    setTimeout(() => cell.classList.remove('invalid-flash'), 400);
+}
+
+
+
+
+function updateSelection(newSel) {
+    db.ref(`games/${appState.gameId}/status/selection`).set(newSel);
+
+    if (newSel.length === 3) {
+        // Auto-open modal if we are the owner
         openCalculationModal();
     }
 }
 
-function isNeighbor(idx1, idx2) {
-    const s = appState.gridSize;
-    const r1 = Math.floor(idx1 / s), c1 = idx1 % s;
-    const r2 = Math.floor(idx2 / s), c2 = idx2 % s;
-    return (Math.abs(r1 - r2) + Math.abs(c1 - c2)) === 1;
-}
 
-function isLinear(idx1, idx2, idx3) {
-    const s = appState.gridSize;
-    const r1 = Math.floor(idx1 / s), c1 = idx1 % s;
-    const r2 = Math.floor(idx2 / s), c2 = idx2 % s;
-    const r3 = Math.floor(idx3 / s), c3 = idx3 % s;
-    const allSameRow = (r1 === r2 && r2 === r3);
-    const allSameCol = (c1 === c2 && c2 === c3);
-    return allSameRow || allSameCol;
-}
 
 function updateGridSelection() {
     const cells = document.querySelectorAll('.grid-cell');
+    const hasOwner = appState.buzzerOwner !== null;
+    const isOwner = (appState.buzzerOwner === appState.playerId);
+
     cells.forEach(c => {
         const idx = parseInt(c.dataset.index);
-        c.classList.remove('selected', 'dimmed', 'highlight-neighbor');
-        c.style.opacity = '1';
+        c.classList.remove('selected', 'selected-border', 'dimmed', 'highlight-possible');
+        c.style.filter = '';
 
-        if (appState.selectedCells.includes(idx)) {
-            c.classList.add('selected');
-        } else if (appState.selectedCells.length > 0) {
-            // Dim check
-            const lastIdx = appState.selectedCells[appState.selectedCells.length - 1];
-            let isValid = isNeighbor(lastIdx, idx);
-            if (appState.selectedCells.length === 2 && isValid) {
-                isValid = isLinear(appState.selectedCells[0], appState.selectedCells[1], idx);
-            }
-
-            if (isValid && appState.selectedCells.length < 3) {
-                c.classList.add('highlight-neighbor');
+        if (hasOwner) {
+            if (appState.selectedCells.includes(idx)) {
+                c.classList.add('selected-border');
             } else {
-                c.classList.add('dimmed');
-                c.style.opacity = '0.4';
+                if (!isOwner) {
+                    c.classList.add('dimmed');
+                }
             }
         }
     });
-}
-
-// --- Calculation Modal ---
+}    // --- Calculation Modal ---
 
 let modalState = { formula: '', usedIndices: [] };
 
-function openCalculationModal() {
+function handleModalSync(remoteState) {
     const modal = document.getElementById('calc-modal');
-    modal.classList.add('active');
+    const wasActive = modal.classList.contains('active');
 
-    // Ensure styles are visible
-    modal.style.display = 'flex'; // Force flex in case class toggle fails with specificity
+    // 1. Open/Close State
+    if (remoteState.isOpen) {
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+
+        // Show Target
+        const targetEl = document.getElementById('modal-target-display');
+        if (targetEl) targetEl.innerText = `Ziel: ${appState.target}`;
+
+        // Check local owner vs observer
+        // Check local owner vs observer
+        // Use appState.buzzerOwner directly. Note: on reload it might be null initially.
+        // If null, we default to read-only.
+        const headerOwner = appState.buzzerOwner;
+        const isOwner = (headerOwner === appState.playerId);
+
+        if (isOwner) {
+            modal.classList.remove('read-only');
+        } else {
+            modal.classList.add('read-only');
+            // Only populate if just opened to avoid wiping formula or rebuilding DOM constantly
+            if (!wasActive) {
+                // Initial open or reload
+                populateModalButtons(true);
+            } else {
+                // If it was active, maybe just update?
+                // But if we reload, wasActive is false.
+            }
+        }
+
+        // 2. Formula Sync
+        if (remoteState.formula !== undefined) {
+            modalState.formula = remoteState.formula;
+            updateFormulaDisplay();
+        }
+
+        // 3. Used Indices Sync
+        if (remoteState.usedIndices) {
+            modalState.usedIndices = remoteState.usedIndices || [];
+            // Update Visuals
+            const numPad = document.getElementById('modal-numpad');
+            if (numPad) {
+                Array.from(numPad.children).forEach(btn => {
+                    const idx = parseInt(btn.dataset.index);
+                    if (modalState.usedIndices.includes(idx)) btn.classList.add('used');
+                    else btn.classList.remove('used');
+                });
+            }
+        }
+
+    } else {
+        closeCalculationModal(false); // Local close without push
+    }
+}
+
+function openCalculationModal() {
+    // Only owner calls this via updateSelection(3)
+    if (appState.buzzerOwner !== appState.playerId) return;
+
+    // Clear Selection Timer
+    if (appState.selectionTimer) {
+        clearInterval(appState.selectionTimer);
+        appState.selectionTimer = null;
+    }
+
+    db.ref(`games/${appState.gameId}/status/modal`).set({
+        isOpen: true,
+        formula: '',
+        usedIndices: []
+    });
+
+    populateModalButtons(); // Owner resets formula initially
+}
+
+function populateModalButtons(preserveFormula = false) {
+    // Safety Check: Grid must be loaded
+    if (!appState.gridData || appState.gridData.length === 0) {
+        console.warn("populateModalButtons: Grid not ready, skipping.");
+        return;
+    }
 
     const numPad = document.getElementById('modal-numpad');
     numPad.innerHTML = '';
-    modalState.formula = '';
-    modalState.usedIndices = [];
+
+    if (!preserveFormula) {
+        modalState.formula = '';
+        modalState.usedIndices = [];
+    }
+    // If preserving, we keep formula but we might need to recalc usedIndices?
+    // Actually formula string doesn't tell us used indicies easily unless we parse.
+    // But for Reload, we get formula from Remote, but usedIndices??
+    // We can't easily reconstruct usedIndices from formula string alone (e.g. if two 3s exist).
+    // STRICT MODE: We probably need to sync usedIndices to firebase too if we want perfect resume.
+    // For now: If preserving (Reload), we assume usedIndices is empty or best effort.
+    // BUT: If usedIndices is empty, buttons won't be grayed out!
+    // The user said "numbers disappear".
+    // Let's at least show the numbers.
     updateFormulaDisplay();
 
     appState.selectedCells.forEach(idx => {
@@ -740,43 +1094,176 @@ function openCalculationModal() {
         btn.className = 'btn-calc num-btn';
         btn.innerText = num;
         btn.dataset.index = idx;
+
+        // Restore used class for persistence
+        if (modalState.usedIndices.includes(idx)) {
+            btn.classList.add('used');
+        }
+
         btn.onclick = () => handleNumClick(num, idx, btn);
         numPad.appendChild(btn);
     });
 
+    // Attach listeners only once or re-attach safely?
+    // They are global IDs. Re-attaching is fine.
     document.getElementById('btn-solve').onclick = submitSolution;
     document.querySelectorAll('.btn-calc.op').forEach(b => {
-        b.onclick = () => handleOpClick(b.dataset.op);
+        b.onclick = () => handleOpClick(b.dataset.op, b);
+
+        // Restore used class for operators
+        if (['+', '-', '*', '/'].includes(b.dataset.op) && modalState.formula.includes(b.dataset.op)) {
+            b.classList.add('used');
+        } else {
+            b.classList.remove('used');
+        }
     });
     document.getElementById('btn-backspace').onclick = handleBackspace;
-    document.getElementById('btn-clear').onclick = () => {
-        modalState.formula = ''; modalState.usedIndices = []; updateFormulaDisplay();
-        document.querySelectorAll('.num-btn').forEach(b => b.classList.remove('used'));
-    };
+    document.getElementById('btn-clear').onclick = handleClear;
 }
 
-function closeCalculationModal() {
+function closeCalculationModal(push = true) {
     document.getElementById('calc-modal').classList.remove('active');
     document.getElementById('calc-modal').style.display = '';
-    appState.selectedCells = [];
-    updateGridSelection();
 
-    // Explicit release if we cancel?
-    // User might just close tab. We need penalty on timeout or explict cancel button?
-    // For now simple close logic.
+    if (push && appState.gameId && appState.buzzerOwner === appState.playerId) {
+        db.ref(`games/${appState.gameId}/status/modal`).set({ isOpen: false });
+        // Reset selection too
+        updateSelection([]);
+        // Reset buzzer? No, buzzer reset happens on correct/penalty.
+        // If they just close check penalty logic?? 
+        // For now assumes submit is the way out.
+    }
 }
 
+function updateRemoteFormula() {
+    if (appState.buzzerOwner === appState.playerId) {
+        db.ref(`games/${appState.gameId}/status/modal`).update({
+            formula: modalState.formula,
+            usedIndices: modalState.usedIndices
+        });
+    }
+}
+
+
+
+
+
 function handleNumClick(num, idx, btn) {
+    if (appState.buzzerOwner !== appState.playerId) return;
     if (modalState.usedIndices.includes(idx)) return;
+
+    const prev = modalState.formula;
+
+    // Check consecutive numbers restriction
+    // If last char is a digit or ends with number, prevent.
+    // Actually we deal with multichar numbers? No, digits are single.
+    // BUT user said "2 numbers consecutive". 19 is consecutive. 1 9.
+    // Do we allow 19? The request says "never 2 numbers consecutive without operator".
+    // This implies we cannot form multi-digit numbers?
+    // "1-9" is single digit. "1-20" is double digit.
+    // But these are TILES. The tiles are treated as atomic numbers.
+    // So "19" is one tile. "5" is one tile.
+    // The issue is clicking "5" then "3" -> "53".
+    // We want to force "5 + 3".
+    // So if the last inputs was a 'num' type in history, prevent.
+    if (modalState.history && modalState.history.length > 0) {
+        const last = modalState.history[modalState.history.length - 1];
+        if (last.type === 'num') return; // Block consecutive numbers
+    }
+
+    if (!modalState.history) modalState.history = [];
+    modalState.history.push({ type: 'num', idx: idx, prevFormula: prev });
+
     modalState.formula += num;
     modalState.usedIndices.push(idx);
     btn.classList.add('used');
+
+    updateRemoteFormula();
     updateFormulaDisplay();
 }
 
-function handleOpClick(op) { modalState.formula += op; updateFormulaDisplay(); }
-function handleBackspace() { modalState.formula = modalState.formula.slice(0, -1); updateFormulaDisplay(); }
+function handleOpClick(op, btn) {
+    if (appState.buzzerOwner !== appState.playerId) return;
+
+    // Single use restriction for operators (except parens)
+    if (['+', '-', '*', '/'].includes(op) && modalState.formula.includes(op)) {
+        return; // Already used
+    }
+
+    // History
+    const prev = modalState.formula;
+    if (!modalState.history) modalState.history = [];
+    modalState.history.push({ type: 'op', prevFormula: prev, op: op });
+
+    modalState.formula += op;
+
+    // Visual Feedback
+    if (btn && ['+', '-', '*', '/'].includes(op)) {
+        btn.classList.add('used');
+    }
+
+    updateRemoteFormula();
+    updateFormulaDisplay();
+}
+
+function handleBackspace() {
+    if (appState.buzzerOwner !== appState.playerId) return;
+
+    if (modalState.history && modalState.history.length > 0) {
+        const lastAction = modalState.history.pop();
+
+        // Restore Formula State
+        modalState.formula = lastAction.prevFormula;
+
+        // If it was a number, free the index
+        if (lastAction.type === 'num') {
+            modalState.usedIndices = modalState.usedIndices.filter(i => i !== lastAction.idx);
+
+            // Visual Update
+            // We need to re-scan all buttons to match usedIndices because 
+            // multiple buttons might be same number (though unlikely in this game logic, indices are unique)
+            // But strict unique index logic => just remove class from THAT index.
+            const btn = document.querySelector(`.num-btn[data-index="${lastAction.idx}"]`);
+            if (btn) btn.classList.remove('used');
+        } else if (lastAction.type === 'op') {
+            // If op was removed, re-enable button
+            if (lastAction.op && ['+', '-', '*', '/'].includes(lastAction.op)) {
+                const opBtn = document.querySelector(`.btn-calc.op[data-op="${lastAction.op}"]`);
+                if (opBtn) opBtn.classList.remove('used');
+            }
+        }
+    } else {
+        // Fallback if no history (shouldnt happen if logic consistent, but for safety)
+        if (modalState.formula.length > 0) {
+            modalState.formula = ''; // Safe fail: clear all if desync? 
+            // Or just do nothing. User wants block deletion. 
+            // If history empty but formula not, it's weird.
+            // Let's just reset if history lost.
+            modalState.formula = '';
+            modalState.usedIndices = [];
+            document.querySelectorAll('.num-btn').forEach(b => b.classList.remove('used'));
+            document.querySelectorAll('.btn-calc.op').forEach(b => b.classList.remove('used'));
+        }
+    }
+
+    updateRemoteFormula();
+    updateFormulaDisplay();
+}
+
+function handleClear() {
+    if (appState.buzzerOwner !== appState.playerId) return;
+    modalState.formula = '';
+    modalState.usedIndices = [];
+    modalState.history = [];
+    document.querySelectorAll('.num-btn').forEach(b => b.classList.remove('used'));
+    document.querySelectorAll('.btn-calc.op').forEach(b => b.classList.remove('used'));
+
+    updateRemoteFormula();
+    updateFormulaDisplay();
+}
+
 function updateFormulaDisplay() { document.getElementById('formula-display').innerText = modalState.formula; }
+
 
 function submitSolution() {
     if (!modalState.formula) return;
@@ -818,28 +1305,83 @@ function attachHostLogic(gameId) {
 function validateAttempt(attempt, attemptKey) {
     const gameRef = db.ref(`games/${appState.gameId}`);
     let valid = false;
+    let result = null;
+
     try {
-        const result = calculateFormula(attempt.formula);
+        result = calculateFormula(attempt.formula);
         if (Math.abs(result - attempt.target) < 0.001) valid = true;
     } catch (e) { }
 
     if (valid) {
-        gameRef.child(`players/${attempt.playerId}/score`).transaction(score => (score || 0) + 1);
+        gameRef.child(`players/${attempt.playerId}/score`).transaction(score => {
+            return (score || 0) + 1;
+        }, (error, committed, snapshot) => {
+            if (committed) {
+                const newScore = snapshot.val();
+                if (appState.winningScore && newScore >= appState.winningScore) {
+                    gameRef.update({
+                        state: 'finished',
+                        winner: attempt.playerId
+                    });
+                }
+            }
+        });
+
         gameRef.child('status').set(null);
         // New Target
-        startGameAction(); // Re-use generator (generates new target/grid? No just target usually?)
-        // Instructions said "Neue Zielzahl". startGameAction regenerates Grid too?
-        // Let's split it.
-        // Actually for Trio, Grid stays same usually? Prompt didn't specify. 
-        // "Wenn >50% Veto... Host Algorithmus neue Zielzahl".
-        // Let's imply Grid stays, Target changes.
+        startGameAction();
         generateNewTarget();
     } else {
-        const lockTime = Date.now() + 5000;
+        const lockTime = Date.now() + 20000; // 20s Penalty
         gameRef.child(`players/${attempt.playerId}/lockedUntil`).set(lockTime);
         gameRef.child('status').set(null);
     }
+
+    // Result Feedback
+    const resultData = {
+        correct: valid,
+        playerId: attempt.playerId,
+        result: result,
+        formula: attempt.formula,
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    };
+    gameRef.child('status/result').set(resultData);
+
     db.ref(`games/${appState.gameId}/attempts/${attemptKey}`).remove();
+}
+
+function startPenaltyCountdown() {
+    if (appState.penaltyInterval) clearInterval(appState.penaltyInterval);
+    if (!appState.lockedUntil || appState.lockedUntil <= Date.now()) {
+        appState.lockedUntil = null;
+        // Reset button text if not buzzer owner
+        if (appState.buzzerOwner === null) {
+            buttons.buzzer.innerText = "TRIO!";
+            buttons.buzzer.disabled = false;
+        }
+        return;
+    }
+
+    buttons.buzzer.disabled = true;
+    appState.penaltyInterval = setInterval(() => {
+        const remaining = Math.ceil((appState.lockedUntil - Date.now()) / 1000);
+        if (remaining <= 0) {
+            clearInterval(appState.penaltyInterval);
+            appState.lockedUntil = null;
+            if (appState.buzzerOwner === null) {
+                buttons.buzzer.innerText = "TRIO!";
+                buttons.buzzer.disabled = false;
+            } else {
+                // If someone else is owner, let the owner listener handle text
+            }
+        } else {
+            buttons.buzzer.innerText = `GESPERRT (${remaining}s)`;
+        }
+    }, 1000);
+
+    // Initial immediate update
+    const remaining = Math.ceil((appState.lockedUntil - Date.now()) / 1000);
+    buttons.buzzer.innerText = `GESPERRT (${remaining}s)`;
 }
 
 function generateNewTarget() {
@@ -888,8 +1430,26 @@ function checkVetoThreshold(vetoMap, totalPlayers) {
 
 function generateGrid(size) {
     const totalCells = size * size;
-    appState.gridData = [];
-    for (let i = 0; i < totalCells; i++) appState.gridData.push(Math.floor(Math.random() * 20) + 1);
+    // Range Settings
+    const isExtended = appState.numberRange === 'extended';
+    const maxNum = isExtended ? 20 : 9;
+
+    // Generate Grid
+    const newGrid = [];
+    for (let i = 0; i < size * size; i++) {
+        // Random 1-9 or 1-20
+        newGrid.push(Math.floor(Math.random() * maxNum) + 1);
+    }
+    appState.gridData = newGrid;
+
+    // Adjust difficulty maxTarget
+    // Base: 50, Extended: 100
+    const maxTarget = isExtended ? 100 : 50;
+
+    // Find Solutions
+    // We pass maxTarget to findSolutions to filter results? 
+    // Or just filter AFTER.
+    appState.currSolutions = findSolutions(newGrid, size, appState.difficulty, maxTarget);
 }
 
 function getNumberColor(num) {
@@ -897,9 +1457,9 @@ function getNumberColor(num) {
     return `hsl(${hue}, 70%, 50%)`;
 }
 
-function findSolutions(grid, size, difficulty) {
+function findSolutions(grid, size, difficulty, maxTarget = 50) {
     const solutions = [];
-    const addSol = (nums, result) => { if (Number.isInteger(result) && result > 0 && result < 200) solutions.push({ result, nums }); };
+    const addSol = (nums, result) => { if (Number.isInteger(result) && result > 0 && result <= maxTarget) solutions.push({ result, nums }); };
 
     // Simple Loop (Reuse earlier logic)
     for (let row = 0; row < size; row++) {
@@ -914,20 +1474,44 @@ function findSolutions(grid, size, difficulty) {
             tryAdd([grid[idx], grid[idx + size], grid[idx + size * 2]], difficulty, addSol);
         }
     }
+
+    // Diagonal TL-BR
+    for (let row = 0; row < size - 2; row++) {
+        for (let col = 0; col < size - 2; col++) {
+            const idx = row * size + col;
+            // idx, idx+(s+1), idx+2*(s+1)
+            tryAdd([grid[idx], grid[idx + size + 1], grid[idx + 2 * (size + 1)]], difficulty, addSol);
+        }
+    }
+
+    // Diagonal TR-BL
+    for (let row = 0; row < size - 2; row++) {
+        for (let col = 2; col < size; col++) {
+            const idx = row * size + col;
+            // idx, idx+(s-1), idx+2*(s-1)
+            tryAdd([grid[idx], grid[idx + size - 1], grid[idx + 2 * (size - 1)]], difficulty, addSol);
+        }
+    }
     return solutions;
 }
 
 function tryAdd(triplet, diff, addSol) {
     const [a, b, c] = triplet;
-    if (diff === 'easy') { addSol(triplet, a * b + c); addSol(triplet, a * b - c); }
+    if (diff === 'normal') {
+        // Normal: a * b +/- c (Classic Trio)
+        addSol(triplet, a * b + c);
+        addSol(triplet, a * b - c);
+    }
     else {
-        // simplified hard/med
+        // Advanced / Pro: Full Permutations with +, -, *, /
         const ops = ['+', '-', '*', '/'];
-        // Permutations 
         const perms = [[a, b, c], [a, c, b], [b, a, c], [b, c, a], [c, a, b], [c, b, a]];
         perms.forEach(p => {
             ops.forEach(o1 => ops.forEach(o2 => {
-                try { addSol(triplet, eval(`${p[0]}${o1}${p[1]}${o2}${p[2]}`)); } catch (e) { }
+                try {
+                    const res = eval(`${p[0]}${o1}${p[1]}${o2}${p[2]}`);
+                    addSol(triplet, res);
+                } catch (e) { }
             }));
         });
     }
@@ -991,7 +1575,10 @@ function renderGrid() {
         cell.dataset.index = index;
         cell.innerText = num;
         cell.onclick = (e) => handleCellClick(e);
-        cell.style.color = getNumberColor(num);
+        cell.style.backgroundColor = getNumberColor(num);
+        cell.style.color = 'white';
+        // Add text shadow for better readability
+        cell.style.textShadow = '0 1px 2px rgba(0,0,0,0.3)';
         grid.appendChild(cell);
     });
     updateGridSelection();

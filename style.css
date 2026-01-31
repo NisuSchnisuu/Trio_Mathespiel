@@ -578,13 +578,52 @@ select option {
 }
 
 .grid-cell:hover {
-    background: #475569;
+    filter: brightness(1.2);
 }
 
-.grid-cell.selected {
-    background: var(--primary-color);
-    color: white;
-    transform: scale(0.95);
+
+/* Selection & Highlight States */
+.grid-cell.selected-border {
+    border: 4px solid #4ade80 !important;
+    /* Green-400 */
+    box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+    z-index: 10;
+    transform: scale(1.05);
+    /* Slightly larger */
+}
+
+/* Remove dimming logic for now per request, or strictly for non-owners later */
+/* Re-purposing dimmed for disabled state if needed */
+.grid-cell.dimmed {
+    opacity: 0.3;
+    pointer-events: none;
+    /* Can't click if not owner */
+    filter: grayscale(0.8);
+}
+
+.grid-cell.invalid-flash {
+    animation: flashRed 0.4s ease;
+}
+
+@keyframes flashRed {
+
+    0%,
+    100% {
+        border-color: transparent;
+    }
+
+    50% {
+        border: 4px solid #ef4444;
+        background-color: rgba(239, 68, 68, 0.2);
+    }
+}
+
+
+
+/* Disable hover on dimmed unless it's a reset click */
+.grid-cell.dimmed:hover {
+    filter: brightness(1) grayscale(0.8);
+    transform: none;
 }
 
 .game-dashboard {
@@ -746,6 +785,17 @@ select option {
     animation: fadeIn 0.2s;
 }
 
+/* Read-only Modal for Observers */
+.modal-overlay.read-only .numpad-section,
+.modal-overlay.read-only .operator-pad,
+.modal-overlay.read-only #btn-solve,
+.modal-overlay.read-only #btn-backspace,
+.modal-overlay.read-only #btn-clear {
+    pointer-events: none;
+    opacity: 0.5;
+    filter: grayscale(1);
+}
+
 .modal-overlay.active {
     display: flex;
 }
@@ -809,8 +859,27 @@ select option {
     background: #475569;
 }
 
+.btn-calc:hover {
+    background: #475569;
+    transform: translateY(-2px);
+}
+
+.btn-calc.used {
+    background: #0f172a;
+    /* Darker fadeout */
+    color: #334155;
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.6;
+    transform: none;
+    box-shadow: none;
+    border: 1px solid #1e293b;
+}
+
 .btn-calc.op {
     background: #475569;
+    /* Revert to gray */
+    font-weight: 700;
 }
 
 .btn-calc.action {
@@ -926,6 +995,7 @@ select option {
         opacity: 0.5;
     }
 }
+
 .btn-vote-pulse {
     background: var(--primary);
     color: white;
@@ -940,9 +1010,17 @@ select option {
 }
 
 @keyframes pulse-glow {
-    0% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.7); }
-    70% { box-shadow: 0 0 0 10px rgba(14, 165, 233, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
+    0% {
+        box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(14, 165, 233, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(14, 165, 233, 0);
+    }
 }
 
 /* QUICK JOIN LAYOUT */
@@ -951,7 +1029,8 @@ select option {
     flex-direction: column !important;
     justify-content: center !important;
     gap: 20px !important;
-    padding-top: 20vh; /* Push down a bit */
+    padding-top: 20vh;
+    /* Push down a bit */
 }
 
 .quick-join-mode .lobby-intro {
@@ -966,7 +1045,8 @@ select option {
 
 .quick-join-mode .action-buttons {
     width: 100%;
-    max-width: 400px; /* Match input width usually */
+    max-width: 400px;
+    /* Match input width usually */
     margin: 0 auto;
 }
 

@@ -57,25 +57,49 @@
             <!-- Main Actions -->
             <div class="action-buttons">
                 <div id="create-container">
-                    <button class="btn-primary" id="btn-create" style="width:100%">Spiel erstellen</button>
+                    <button class="btn-primary" id="btn-create"
+                        style="width:100%; background: var(--success); border-color: var(--success);">Spiel
+                        erstellen</button>
 
                     <!-- Settings available when creating -->
                     <div class="settings-panel">
-                        <div class="settings-option">
-                            <label for="difficulty">Schwierigkeit</label>
-                            <select id="difficulty" style="width:100%; padding: 8px; border-radius: 8px;">
-                                <option value="easy">Einfach</option>
-                                <option value="medium" selected>Mittel</option>
-                                <option value="hard">Schwer</option>
-                            </select>
+                        <div class="settings-row" style="display: flex; gap: 10px;">
+                            <div class="settings-option" style="flex: 1;">
+                                <label for="difficulty">Schwierigkeit</label>
+                                <select id="difficulty" style="width:100%; padding: 8px; border-radius: 8px;">
+                                    <option value="normal" selected>Normal</option>
+                                    <option value="advanced">Fortgeschritten</option>
+                                    <option value="pro">Profi</option>
+                                </select>
+                            </div>
+                            <div class="settings-option" style="flex: 1;">
+                                <label for="number-range">Zahlenraum</label>
+                                <select id="number-range" style="width:100%; padding: 8px; border-radius: 8px;">
+                                    <option value="base" selected>1-9 (Ziel 50)</option>
+                                    <option value="extended">1-20 (Ziel 100)</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="settings-option">
-                            <label for="grid-size">Gittergröße</label>
-                            <select id="grid-size" style="width:100%; padding: 8px; border-radius: 8px;">
-                                <option value="5">5x5 (Klein)</option>
-                                <option value="7" selected>7x7 (Standard)</option>
-                                <option value="9">9x9 (Groß)</option>
-                            </select>
+                        <div class="settings-row" style="display: flex; gap: 10px;">
+                            <div class="settings-option" style="flex: 1;">
+                                <label for="grid-size">Gittergröße</label>
+                                <select id="grid-size" style="width:100%; padding: 8px; border-radius: 8px;">
+                                    <option value="5">5x5 (Klein)</option>
+                                    <option value="7" selected>7x7 (Standard)</option>
+                                    <option value="9">9x9 (Groß)</option>
+                                </select>
+                            </div>
+                            <div class="settings-option" style="flex: 1;">
+                                <label for="winning-score">Ziel-Punkte</label>
+                                <select id="winning-score"
+                                    style="width:100%; padding: 8px; border-radius: 8px; margin-bottom: 5px;">
+                                    <option value="5">5 Punkte</option>
+                                    <option value="10" selected>10 Punkte</option>
+                                    <option value="custom">Benutzerdefiniert</option>
+                                </select>
+                                <input type="number" id="custom-score" placeholder="Punkte eingeben"
+                                    style="width:100%; padding: 8px; border-radius: 8px; display: none;">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -191,6 +215,7 @@
     <div id="calc-modal" class="modal-overlay">
         <div class="modal-content">
             <h2>Rechne!</h2>
+            <h3 id="modal-target-display" style="text-align:center; color:#fbbf24; margin-bottom:10px;">Ziel: --</h3>
             <div class="formula-display" id="formula-display"></div>
 
             <div class="numpad-section" id="modal-numpad">
