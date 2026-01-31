@@ -926,3 +926,55 @@ select option {
         opacity: 0.5;
     }
 }
+.btn-vote-pulse {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 4px;
+    animation: pulse-glow 1.5s infinite;
+}
+
+@keyframes pulse-glow {
+    0% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(14, 165, 233, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
+}
+
+/* QUICK JOIN LAYOUT */
+.quick-join-mode {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    gap: 20px !important;
+    padding-top: 20vh; /* Push down a bit */
+}
+
+.quick-join-mode .lobby-intro {
+    text-align: center;
+    width: 100%;
+    margin-bottom: 0 !important;
+}
+
+.quick-join-mode .input-group {
+    margin-top: 20px;
+}
+
+.quick-join-mode .action-buttons {
+    width: 100%;
+    max-width: 400px; /* Match input width usually */
+    margin: 0 auto;
+}
+
+.quick-join-mode .join-section {
+    margin-top: 0 !important;
+}
+
+.quick-join-mode #join-container {
+    display: flex;
+    flex-direction: column;
+}

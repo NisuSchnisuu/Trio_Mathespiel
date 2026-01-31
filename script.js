@@ -133,8 +133,25 @@ function init() {
     if (joinCode) {
         // Pre-fill
         inputs.joinCode.value = joinCode;
+
+        // Quick Join UI Mode
+        const createContainer = document.getElementById('create-container');
+        const joinDivider = document.querySelector('.join-section p'); // "ODER"
+        const joinInput = document.getElementById('join-code');
+
+        if (createContainer) createContainer.style.display = 'none';
+        if (joinDivider) joinDivider.style.display = 'none';
+        if (joinInput) joinInput.style.display = 'none';
+
+        // Add specific layout class
+        const lobbyContainer = document.querySelector('.lobby-container');
+        if (lobbyContainer) lobbyContainer.classList.add('quick-join-mode');
+
         // Optional: Focus name
         inputs.playerName.focus();
+
+        // CLEANUP: Remove query param so reload/back goes to Home
+        window.history.replaceState({}, document.title, window.location.pathname);
     } else {
         // Try Restore
         checkSession();
@@ -1003,7 +1020,7 @@ function handleVoteUpdate(voteData, players) {
     const voteBox = document.getElementById('vote-box');
     const dotsContainer = document.getElementById('vote-dots');
 
-    if (!voteData || voteData.status !== 'active') {
+    if (!voteData || (voteData.status !== 'active' && voteData.status !== 'rejected')) {
         if (voteBox) voteBox.style.display = 'none';
         if (dotsContainer) dotsContainer.innerHTML = '';
         return;
@@ -1014,13 +1031,24 @@ function handleVoteUpdate(voteData, players) {
 
     // 1. Check if I need to vote
     const myVote = voteData.votes ? voteData.votes[appState.playerId] : null;
+    const voteBtn = document.getElementById('btn-cast-vote');
 
-    if (!myVote) {
-        showModal("Abstimmung", `${voteData.initiator} möchte die Zielzahl mischen.`, () => {
-            castVote('accept');
-        }, false, "Akzeptieren", "Ablehnen", () => {
-            castVote('reject');
-        });
+    if (voteData.status === 'rejected') {
+        if (voteBtn) voteBtn.style.display = 'none';
+    } else if (!myVote) {
+        // Show Button instead of auto-popup
+        if (voteBtn) {
+            voteBtn.style.display = 'block';
+            voteBtn.onclick = () => {
+                showModal("Abstimmung", `${voteData.initiator} möchte die Zielzahl mischen.`, () => {
+                    castVote('accept');
+                }, false, "Akzeptieren", "Ablehnen", () => {
+                    castVote('reject');
+                });
+            };
+        }
+    } else {
+        if (voteBtn) voteBtn.style.display = 'none';
     }
 
     // 2. Render Dots
@@ -1046,8 +1074,13 @@ function handleVoteUpdate(voteData, players) {
         const rejects = Object.values(votes).filter(v => v === 'reject').length;
 
         if (rejects > 0) {
-            db.ref(`games/${appState.gameId}/vote`).remove();
-            showModal("Abgelehnt", "Jemand hat dagegen gestimmt.", null, true);
+            // Rejection: Set status to rejected (shows red dot) and wait
+            if (voteData.status !== 'rejected') {
+                db.ref(`games/${appState.gameId}/vote/status`).set('rejected');
+                setTimeout(() => {
+                    db.ref(`games/${appState.gameId}/vote`).remove();
+                }, 2000);
+            }
         } else if (accepts === totalPlayers) {
             db.ref(`games/${appState.gameId}/vote`).remove();
             rerollTarget(); // Changed from startGameAction()
