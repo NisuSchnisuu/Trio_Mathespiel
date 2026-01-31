@@ -150,6 +150,31 @@ function init() {
     const params = new URLSearchParams(window.location.search);
     const joinCode = params.get('join');
 
+    // 1. Restore Player Attributes (Name)
+    const storedName = localStorage.getItem('trio_player_name');
+    if (storedName) {
+        inputs.playerName.value = storedName;
+    }
+
+    // 2. Restore Game Settings (if available)
+    const storedSettings = localStorage.getItem('trio_game_settings');
+    if (storedSettings) {
+        try {
+            const settings = JSON.parse(storedSettings);
+            if (settings.difficulty) inputs.difficulty.value = settings.difficulty;
+            if (settings.winningScore) inputs.winningScore.value = settings.winningScore;
+            if (settings.customScore) inputs.customScore.value = settings.customScore;
+            if (settings.numberRange) inputs.numberRange.value = settings.numberRange;
+
+            // Trigger change event to update UI (e.g. custom score field visibility)
+            if (settings.winningScore === 'custom') {
+                inputs.customScore.style.display = 'block';
+            }
+        } catch (e) {
+            console.error("Error restoring settings", e);
+        }
+    }
+
     // Priority: 1. Join Code, 2. Restoration, 3. Default Lobby
     if (joinCode) {
         // Pre-fill
@@ -168,8 +193,10 @@ function init() {
         const lobbyContainer = document.querySelector('.lobby-container');
         if (lobbyContainer) lobbyContainer.classList.add('quick-join-mode');
 
-        // Optional: Focus name
-        inputs.playerName.focus();
+        // Optional: Focus name if empty, else ready
+        if (!inputs.playerName.value) {
+            inputs.playerName.focus();
+        }
 
         // CLEANUP: Remove query param so reload/back goes to Home
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -186,6 +213,17 @@ function setupEventListeners() {
         const name = inputs.playerName.value.trim();
         if (!name) { showMessage('Fehler', 'Bitte gib deinen Namen ein!'); return; }
 
+        // Persist Name
+        localStorage.setItem('trio_player_name', name);
+        // Persist Settings
+        const settings = {
+            difficulty: inputs.difficulty.value,
+            winningScore: inputs.winningScore.value,
+            customScore: inputs.customScore.value,
+            numberRange: inputs.numberRange ? inputs.numberRange.value : 'base'
+        };
+        localStorage.setItem('trio_game_settings', JSON.stringify(settings));
+
         createGame(name);
     });
 
@@ -194,6 +232,9 @@ function setupEventListeners() {
         const name = inputs.playerName.value.trim();
         const code = inputs.joinCode.value.trim();
         if (!name || !code) { showMessage('Fehler', 'Name und Game-Code sind erforderlich!'); return; }
+
+        // Persist Name
+        localStorage.setItem('trio_player_name', name);
 
         joinGame(code, name);
     });
