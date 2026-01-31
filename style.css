@@ -1124,6 +1124,8 @@ select option {
     justify-content: center;
     opacity: 0;
     transition: opacity 0.5s ease;
+    padding: 20px;
+    /* Add padding so content doesn't touch edges */
 }
 
 .full-screen-overlay.active {
@@ -1134,6 +1136,10 @@ select option {
 .install-content {
     max-width: 700px !important;
     width: 95%;
+    max-height: 90vh;
+    /* Don't be taller than 90% of screen */
+    overflow-y: auto;
+    /* Scroll if needed */
     background: transparent !important;
     box-shadow: none !important;
     border: none !important;
