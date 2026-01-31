@@ -89,7 +89,9 @@ function saveSession() {
             gameId: appState.gameId,
             playerId: appState.playerId,
             isHost: appState.isHost,
-            playerName: appState.playerName
+            isHost: appState.isHost,
+            playerName: appState.playerName,
+            difficulty: appState.difficulty
         };
         localStorage.setItem('trio_session', JSON.stringify(session));
     }
@@ -110,7 +112,9 @@ function checkSession() {
                 appState.gameId = session.gameId;
                 appState.playerId = session.playerId;
                 appState.isHost = session.isHost;
+                appState.isHost = session.isHost;
                 appState.playerName = session.playerName;
+                if (session.difficulty) appState.difficulty = session.difficulty;
 
                 // Attempt Reconnect
                 subscribeToGame(appState.gameId);
@@ -1427,8 +1431,14 @@ function validateAttempt(attempt, attemptKey) {
             const countPlus = (f.match(/\+/g) || []).length;
             const countMinus = (f.match(/-/g) || []).length;
 
-            if (countMult !== 1) structureValid = false;
-            if (countPlus + countMinus !== 1) structureValid = false;
+            if (countMult !== 1) {
+                structureValid = false;
+                failReason = "Es muss genau eine Mal-Rechnung enthalten sein!";
+            }
+            if (countPlus + countMinus !== 1) {
+                structureValid = false;
+                if (!failReason) failReason = "Es muss genau eine Plus- oder Minus-Rechnung enthalten sein!";
+            }
 
             // Structure Check: A*B+C, A*B-C, C+A*B
             // The prompt says "Structure is given: (A*B) +/- C". 
