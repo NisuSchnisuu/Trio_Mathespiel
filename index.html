@@ -195,10 +195,22 @@
 
             <button class="btn-primary" id="btn-solve" style="width:100%; margin-top:20px;">LÖSEN</button>
         </div>
-    </div>
+        <!-- APP GENERIC MODAL -->
+        <div id="app-modal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 400px;">
+                <h2 id="app-modal-title" style="margin-bottom: 15px;">Titel</h2>
+                <p id="app-modal-message" style="margin-bottom: 25px; line-height: 1.5; color: #cbd5e1;">Nachricht
+                    hier...</p>
 
-    <!-- App Logic -->
-    <script src="script.js"></script>
+                <div id="app-modal-actions" style="display: flex; gap: 10px; justify-content: center;">
+                    <button id="app-modal-cancel" class="btn-secondary" style="flex: 1;">Abbrechen</button>
+                    <button id="app-modal-confirm" class="btn-primary" style="flex: 1;">OK</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- App Logic -->
+        <script src="script.js"></script>
 </body>
 
 </html>

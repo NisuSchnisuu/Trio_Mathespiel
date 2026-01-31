@@ -146,7 +146,7 @@ function setupEventListeners() {
     // Create Game
     buttons.createGame.addEventListener('click', () => {
         const name = inputs.playerName.value.trim();
-        if (!name) { alert('Bitte gib deinen Namen ein!'); return; }
+        if (!name) { showMessage('Fehler', 'Bitte gib deinen Namen ein!'); return; }
 
         createGame(name);
     });
@@ -155,7 +155,7 @@ function setupEventListeners() {
     buttons.enterGame.addEventListener('click', () => {
         const name = inputs.playerName.value.trim();
         const code = inputs.joinCode.value.trim();
-        if (!name || !code) { alert('Name und Game-Code sind erforderlich!'); return; }
+        if (!name || !code) { showMessage('Fehler', 'Name und Game-Code sind erforderlich!'); return; }
 
         joinGame(code, name);
     });
@@ -171,13 +171,60 @@ function setupEventListeners() {
 function handleGlobalBack() {
     // If in Game or Waiting -> Leave Game logic
     if (appState.currentView === 'game' || appState.currentView === 'waiting') {
-        if (confirm("Möchtest du das Spiel wirklich verlassen?")) {
+        showConfirm("Spiel verlassen?", "Möchtest du das Spiel wirklich verlassen?", () => {
             leaveGame();
-        }
+        });
     } else {
         // Default fallback (though usually hidden in lobby)
         location.reload();
     }
+}
+
+// --- Custom Modal Helpers ---
+function showMessage(title, message) {
+    showModal(title, message, null, true);
+}
+
+function showConfirm(title, message, onConfirm) {
+    showModal(title, message, onConfirm, false);
+}
+
+function showModal(title, message, onConfirm, isAlert) {
+    const modal = document.getElementById('app-modal');
+    const titleEl = document.getElementById('app-modal-title');
+    const msgEl = document.getElementById('app-modal-message');
+    const confirmBtn = document.getElementById('app-modal-confirm');
+    const cancelBtn = document.getElementById('app-modal-cancel');
+
+    titleEl.innerText = title;
+    msgEl.innerText = message;
+
+    // Clear old listeners
+    const newConfirm = confirmBtn.cloneNode(true);
+    const newCancel = cancelBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
+    cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+
+    if (isAlert) {
+        newCancel.style.display = 'none';
+        newConfirm.innerText = "OK";
+        newConfirm.onclick = () => {
+            modal.classList.remove('active');
+            if (onConfirm) onConfirm();
+        };
+    } else {
+        newCancel.style.display = 'block';
+        newConfirm.innerText = "Ja";
+        newCancel.onclick = () => {
+            modal.classList.remove('active');
+        };
+        newConfirm.onclick = () => {
+            modal.classList.remove('active');
+            if (onConfirm) onConfirm();
+        };
+    }
+
+    modal.classList.add('active');
 }
 
 
@@ -244,7 +291,7 @@ function joinGame(gameId, playerName) {
     // Check if game exists first
     gameRef.once('value').then(snapshot => {
         if (!snapshot.exists()) {
-            alert('Spiel nicht gefunden!');
+            showMessage('Fehler', 'Spiel nicht gefunden!');
             return;
         }
 
@@ -467,7 +514,7 @@ function handleBuzzerClick() {
     const now = Date.now();
     if (appState.lockedUntil && now < appState.lockedUntil) {
         const wait = Math.ceil((appState.lockedUntil - now) / 1000);
-        alert(`Du bist noch ${wait}s gesperrt!`);
+        showMessage('Gesperrt', `Du bist noch ${wait}s gesperrt!`);
         return;
     }
     if (appState.isLocked && appState.buzzerOwner !== appState.playerId) return;
@@ -665,7 +712,7 @@ function updateFormulaDisplay() { document.getElementById('formula-display').inn
 
 function submitSolution() {
     if (!modalState.formula) return;
-    try { calculateFormula(modalState.formula); } catch (e) { alert("Invalid"); return; }
+    try { calculateFormula(modalState.formula); } catch (e) { showMessage('Fehler', "Ungültige Formel"); return; }
 
     const attempt = {
         playerId: appState.playerId,
