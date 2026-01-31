@@ -857,3 +857,72 @@ select option {
         opacity: 1;
     }
 }
+
+/* VOTING SYSTEM */
+.vote-box {
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    background: rgba(30, 41, 59, 1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 6px 12px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    z-index: 20;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+}
+
+.vote-title {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.vote-dots-container {
+    display: flex;
+    gap: 6px;
+}
+
+.vote-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #475569;
+    /* Pending/Grey */
+    transition: all 0.3s;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+.vote-dot.accept {
+    background: var(--success);
+    box-shadow: 0 0 5px var(--success);
+}
+
+.vote-dot.reject {
+    background: var(--danger);
+    box-shadow: 0 0 5px var(--danger);
+}
+
+.vote-dot.pending {
+    background: #94a3b8;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.5;
+    }
+
+    50% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0.5;
+    }
+}

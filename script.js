@@ -161,6 +161,15 @@ function setupEventListeners() {
     });
 
     buttons.startGame.addEventListener('click', startGameAction);
+    const refreshBtn = document.getElementById('btn-vote-refresh');
+    if (refreshBtn) {
+        refreshBtn.onclick = () => {
+            showConfirm("Zielzahl ändern?", "Möchtest du eine Abstimmung starten?", () => {
+                initiateVote();
+            });
+        };
+    }
+
     buttons.buzzer.addEventListener('click', handleBuzzerClick);
 
     // Back Button Listeners
@@ -197,7 +206,7 @@ function showConfirm(title, message, onConfirm) {
     showModal(title, message, onConfirm, false);
 }
 
-function showModal(title, message, onConfirm, isAlert) {
+function showModal(title, message, onConfirm, isAlert = false, confirmText = 'OK', cancelText = 'Abbrechen', onCancel = null) {
     const modal = document.getElementById('app-modal');
     const titleEl = document.getElementById('app-modal-title');
     const msgEl = document.getElementById('app-modal-message');
@@ -215,22 +224,24 @@ function showModal(title, message, onConfirm, isAlert) {
 
     if (isAlert) {
         newCancel.style.display = 'none';
-        newConfirm.innerText = "OK";
-        newConfirm.onclick = () => {
-            modal.classList.remove('active');
-            if (onConfirm) onConfirm();
-        };
+        newConfirm.innerText = confirmText;
+        newConfirm.style.width = '100%';
     } else {
         newCancel.style.display = 'block';
-        newConfirm.innerText = "Ja";
-        newCancel.onclick = () => {
-            modal.classList.remove('active');
-        };
-        newConfirm.onclick = () => {
-            modal.classList.remove('active');
-            if (onConfirm) onConfirm();
-        };
+        newConfirm.innerText = confirmText;
+        newCancel.innerText = cancelText;
+        newConfirm.style.width = 'auto';
     }
+
+    newConfirm.onclick = () => {
+        modal.classList.remove('active');
+        if (onConfirm) onConfirm();
+    };
+
+    newCancel.onclick = () => {
+        modal.classList.remove('active');
+        if (onCancel) onCancel();
+    };
 
     modal.classList.add('active');
 }
@@ -442,12 +453,15 @@ function startGameAction() {
     appState.target = randomSol.result;
     appState.currSolutions = solutions;
 
+    console.log("HOST: Starting action, setting target:", appState.target);
+
     // Update DB -> Triggers start for everyone
     db.ref(`games/${appState.gameId}`).update({
         grid: appState.gridData,
         target: appState.target,
         state: 'playing'
-    });
+    }).then(() => console.log("HOST: DB Update Success"))
+        .catch(e => console.error("HOST: DB Update Failed", e));
 }
 
 // --- Listeners ---
@@ -496,11 +510,23 @@ function subscribeToGame(gameId) {
             }
         }
         if (data.target) {
+            console.log("SYNC: Target update received:", data.target);
             if (appState.target !== data.target || forceRender) {
                 appState.target = data.target;
                 elements.targetNumber.innerText = appState.target;
                 if (appState.isHost) db.ref(`games/${gameId}/veto`).remove();
             }
+        }
+
+        // Vote Sync
+        if (data.vote) {
+            handleVoteUpdate(data.vote, data.players);
+        } else {
+            // No vote active -> clear UI
+            const dv = document.getElementById('vote-dots');
+            if (dv) dv.innerHTML = '';
+            const vb = document.getElementById('vote-box');
+            if (vb) vb.style.display = 'none';
         }
 
         // Players Sync
@@ -956,3 +982,108 @@ function renderGrid() {
 
 // Start App
 document.addEventListener('DOMContentLoaded', init);
+
+// --- VOTING SYSTEM ---
+
+function initiateVote() {
+    if (!appState.gameId || !appState.playerId) return;
+    const voteRef = db.ref(`games/${appState.gameId}/vote`);
+
+    voteRef.set({
+        initiator: appState.playerName,
+        timestamp: Date.now(),
+        status: 'active',
+        votes: {
+            [appState.playerId]: 'accept' // Auto-accept by initiator
+        }
+    });
+}
+
+function handleVoteUpdate(voteData, players) {
+    const voteBox = document.getElementById('vote-box');
+    const dotsContainer = document.getElementById('vote-dots');
+
+    if (!voteData || voteData.status !== 'active') {
+        if (voteBox) voteBox.style.display = 'none';
+        if (dotsContainer) dotsContainer.innerHTML = '';
+        return;
+    }
+
+    if (voteBox) voteBox.style.display = 'flex';
+    if (dotsContainer) dotsContainer.innerHTML = '';
+
+    // 1. Check if I need to vote
+    const myVote = voteData.votes ? voteData.votes[appState.playerId] : null;
+
+    if (!myVote) {
+        showModal("Abstimmung", `${voteData.initiator} möchte die Zielzahl mischen.`, () => {
+            castVote('accept');
+        }, false, "Akzeptieren", "Ablehnen", () => {
+            castVote('reject');
+        });
+    }
+
+    // 2. Render Dots
+    if (players && dotsContainer) {
+        Object.keys(players).forEach(pid => {
+            const dot = document.createElement('div');
+            dot.className = 'vote-dot';
+
+            const pVote = voteData.votes ? voteData.votes[pid] : null;
+            if (pVote === 'accept') dot.classList.add('accept');
+            else if (pVote === 'reject') dot.classList.add('reject');
+            else dot.classList.add('pending'); // Add pending class explicitly if needed, or default grey
+
+            dotsContainer.appendChild(dot);
+        });
+    }
+
+    // 3. Host Logic
+    if (appState.isHost) {
+        const totalPlayers = Object.keys(players).length;
+        const votes = voteData.votes || {};
+        const accepts = Object.values(votes).filter(v => v === 'accept').length;
+        const rejects = Object.values(votes).filter(v => v === 'reject').length;
+
+        if (rejects > 0) {
+            db.ref(`games/${appState.gameId}/vote`).remove();
+            showModal("Abgelehnt", "Jemand hat dagegen gestimmt.", null, true);
+        } else if (accepts === totalPlayers) {
+            db.ref(`games/${appState.gameId}/vote`).remove();
+            rerollTarget(); // Changed from startGameAction()
+        }
+    }
+}
+
+function castVote(decision) {
+    if (!appState.gameId || !appState.playerId) return;
+    db.ref(`games/${appState.gameId}/vote/votes/${appState.playerId}`).set(decision);
+}
+// --- REROLL LOGIC ---
+function rerollTarget() {
+    if (!appState.isHost) return;
+
+    // Find solutions for EXISTING grid
+    const solutions = findSolutions(appState.gridData, appState.gridSize, appState.difficulty);
+
+    if (solutions.length === 0) {
+        console.warn("No solutions for current grid, forced regen.");
+        startGameAction();
+        return;
+    }
+
+    const randomSol = solutions[Math.floor(Math.random() * solutions.length)];
+    appState.target = randomSol.result;
+    appState.currSolutions = solutions;
+
+    // Force UI Update (Host Sync Fix)
+    elements.targetNumber.innerText = appState.target;
+
+    console.log("HOST: Rerolling Target to:", appState.target);
+
+    // Update DB (Target ONLY)
+    db.ref(`games/${appState.gameId}`).update({
+        target: appState.target
+    }).then(() => console.log("HOST: Target Reroll Update Success"))
+        .catch(e => console.error("HOST: Target Reroll Update Failed", e));
+}
