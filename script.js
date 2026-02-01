@@ -2896,24 +2896,29 @@ const helpPages = {
     home: {
         title: "Willkommen",
         content: `
-            <h3>Dein Wegweiser durch Trio</h3>
-            <p>Trio ist ein schnelles Kopfrechenspiel, bei dem du drei Zahlen finden musst, die eine Zielzahl ergeben.</p>
-            <div style="display: grid; gap: 10px;">
-                <div class="help-card" onclick="renderHelpPage('gameplay')">
-                    <h4>🎮 Spielprinzip</h4>
-                    <p>Wie funktioniert das Spiel? Suchen, Buzzern, Rechnen.</p>
+            <h3 style="text-align:center; margin-top:0; margin-bottom:10px;">Dein Wegweiser</h3>
+            <p style="text-align:center; margin-bottom:20px; font-size:0.9rem; color:var(--text-muted);">Trio ist ein schnelles Kopfrechenspiel.</p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="help-card" onclick="renderHelpPage('gameplay')" style="text-align:center; padding:10px; margin-bottom:0;">
+                    <div style="font-size:1.5rem; margin-bottom:4px;">🎮</div>
+                    <h4 style="font-size:0.95rem; margin-bottom:2px;">Spielprinzip</h4>
+                    <p style="font-size:0.8rem;">Suchen, Buzzern, Rechnen</p>
                 </div>
-                <div class="help-card" onclick="renderHelpPage('modes')">
-                    <h4>⚡ Schwierigkeitsstufen</h4>
-                    <p>Von Normal bis Verrückt - alle Regeln im Überblick.</p>
+                <div class="help-card" onclick="renderHelpPage('modes')" style="text-align:center; padding:10px; margin-bottom:0;">
+                    <div style="font-size:1.5rem; margin-bottom:4px;">⚡</div>
+                    <h4 style="font-size:0.95rem; margin-bottom:2px;">Modi</h4>
+                    <p style="font-size:0.8rem;">Alle Regeln im Überblick</p>
                 </div>
-                <div class="help-card" onclick="renderHelpPage('settings')">
-                    <h4>⚙️ Einstellungen</h4>
-                    <p>Zahlenraum, Gittergröße und Hardcore-Modus.</p>
+                <div class="help-card" onclick="renderHelpPage('settings')" style="text-align:center; padding:10px; margin-bottom:0;">
+                    <div style="font-size:1.5rem; margin-bottom:4px;">⚙️</div>
+                    <h4 style="font-size:0.95rem; margin-bottom:2px;">Einstellungen</h4>
+                    <p style="font-size:0.8rem;">Grösse & Zahlenraum</p>
                 </div>
-                <div class="help-card" onclick="renderHelpPage('tips')">
-                    <h4>💡 Tipps & Tricks</h4>
-                    <p>App installieren, QR-Codes und mehr.</p>
+                <div class="help-card" onclick="renderHelpPage('tips')" style="text-align:center; padding:10px; margin-bottom:0;">
+                    <div style="font-size:1.5rem; margin-bottom:4px;">💡</div>
+                    <h4 style="font-size:0.95rem; margin-bottom:2px;">Tipps</h4>
+                    <p style="font-size:0.8rem;">PWA & QR-Code</p>
                 </div>
             </div>
         `
@@ -2922,103 +2927,179 @@ const helpPages = {
         title: "Spielprinzip",
         content: `
             <h3>So wird gespielt</h3>
-            <ol>
-                <li>
-                    <strong>Suchen & Buzzern:</strong><br>
-                    Alle Spieler sehen das gleiche Zahlen-Gitter und eine <strong>Zielzahl</strong> (z.B. 42).<br>
-                    Wer eine Lösung im Kopf hat, drückt sofort den roten <strong>"TRIO!"-Buzzer</strong>.
-                </li>
-                <li>
-                    <strong>Auswählen (10 Sek.):</strong><br>
-                    Wähle jetzt 3 Zahlen im Gitter aus.<br>
-                    ⚠️ <strong>Regel:</strong> Die Zahlen müssen auf einer <strong>Linie</strong> liegen (waagerecht, senkrecht oder diagonal) und denselben Abstand haben.
-                </li>
-                <li>
-                    <strong>Rechnen:</strong><br>
-                    Ein Taschenrechner öffnet sich. Baue aus deinen 3 Zahlen eine Rechnung, die exakt die Zielzahl ergibt.<br>
-                    <em>Beispiel: Ziel 12 aus (3, 4, 1) -> 3 · 4 · 1 = 12</em>
-                </li>
-            </ol>
-            <p>Welche Rechenzeichen erlaubt sind, hängt von der <a href="#" onclick="renderHelpPage('modes'); return false;" style="color:var(--primary-color);">Schwierigkeitsstufe</a> ab.</p>
+            
+            <div style="margin-bottom:25px;">
+                <div style="display:flex;align-items:center;margin-bottom:10px;">
+                    <span class="help-step-number">1</span>
+                    <strong style="color:white;font-size:1.1rem;">Suchen & Buzzern</strong>
+                </div>
+                <p style="margin-left:32px;">Alle suchen gleichzeitig im Zahlen-Gitter nach einer Lösung für die <strong>Zielzahl</strong>. Wer eine hat: 🔴 <strong>Buzzer drücken!</strong></p>
+            </div>
+
+            <div style="margin-bottom:25px;">
+                <div style="display:flex;align-items:center;margin-bottom:10px;">
+                    <span class="help-step-number">2</span>
+                    <strong style="color:white;font-size:1.1rem;">Auswählen (10s)</strong>
+                </div>
+                <p style="margin-left:32px;">Wähle 3 Zahlen. Sie müssen auf einer <strong>Linie</strong> liegen und den <strong>gleichen Abstand</strong> haben.</p>
+                
+                <!-- VISUALIZATIONS -->
+                <div class="help-grid-examples">
+                    <div class="mini-grid-container">
+                        <div class="mini-grid">
+                            <div class="mini-cell"></div><div class="mini-cell"></div><div class="mini-cell"></div>
+                            <div class="mini-cell selected"></div><div class="mini-cell selected"></div><div class="mini-cell selected"></div>
+                            <div class="mini-cell"></div><div class="mini-cell"></div><div class="mini-cell"></div>
+                        </div>
+                        <span class="mini-grid-label">Waagerecht</span>
+                    </div>
+
+                    <div class="mini-grid-container">
+                        <div class="mini-grid">
+                            <div class="mini-cell"></div><div class="mini-cell selected"></div><div class="mini-cell"></div>
+                            <div class="mini-cell"></div><div class="mini-cell selected"></div><div class="mini-cell"></div>
+                            <div class="mini-cell"></div><div class="mini-cell selected"></div><div class="mini-cell"></div>
+                        </div>
+                        <span class="mini-grid-label">Senkrecht</span>
+                    </div>
+
+                    <div class="mini-grid-container">
+                        <div class="mini-grid">
+                            <div class="mini-cell selected"></div><div class="mini-cell"></div><div class="mini-cell"></div>
+                            <div class="mini-cell"></div><div class="mini-cell selected"></div><div class="mini-cell"></div>
+                            <div class="mini-cell"></div><div class="mini-cell"></div><div class="mini-cell selected"></div>
+                        </div>
+                        <span class="mini-grid-label">Diagonal</span>
+                    </div>
+                    
+                     <div class="mini-grid-container">
+                        <div class="mini-grid">
+                            <div class="mini-cell selected"></div><div class="mini-cell"></div><div class="mini-cell selected"></div>
+                            <div class="mini-cell"></div><div class="mini-cell"></div><div class="mini-cell"></div>
+                            <div class="mini-cell selected"></div><div class="mini-cell"></div><div class="mini-cell"></div>
+                        </div>
+                        <span class="mini-grid-label" style="color:var(--danger)">Ungültig</span>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div style="display:flex;align-items:center;margin-bottom:10px;">
+                    <span class="help-step-number">3</span>
+                    <strong style="color:white;font-size:1.1rem;">Rechnen</strong>
+                </div>
+                <p style="margin-left:32px;">Erstelle eine Rechnung, die genau die Zielzahl ergibt.</p>
+                <code style="display:block;margin-left:32px;background:#1e293b;padding:8px;border-radius:6px;width:fit-content;">3 · 4 + 5 = 17</code>
+            </div>
         `
     },
     modes: {
         title: "Schwierigkeitsstufen",
         content: `
             <h3>Modi & Regeln</h3>
-            <p>Hier siehst du, welche Rechenzeichen in welchem Modus erlaubt sind.</p>
 
             <div class="help-card" onclick="this.classList.toggle('active')">
-                <h4 style="color: #4ade80;">🟢 Normal (Einsteiger)</h4>
-                <p>Erlaubt: <code>+</code> <code>-</code> <code>·</code></p>
-                <ul>
-                    <li>Genau 1x Mal-Rechnung (<code>·</code>)</li>
-                    <li>Genau 1x Strich-Rechnung (<code>+</code> oder <code>-</code>)</li>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h4 style="color: #4ade80; margin:0;">🟢 Normal</h4>
+                    <span style="font-size:0.8rem; background:rgba(74, 222, 128, 0.1); padding:2px 6px; border-radius:4px; color:#4ade80;">Einsteiger</span>
+                </div>
+                <div style="margin-top:10px; display:flex; gap:10px; font-family:monospace; font-size:1.2rem;">
+                    <span style="background:rgba(255,255,255,0.1); padding:4px 8px; border-radius:4px;">+</span>
+                    <span style="background:rgba(255,255,255,0.1); padding:4px 8px; border-radius:4px;">-</span>
+                    <span style="background:rgba(255,255,255,0.1); padding:4px 8px; border-radius:4px;">·</span>
+                </div>
+                <ul style="margin-top:10px; font-size:0.9rem;">
+                    <li>Genau 1x Mal (<code>·</code>)</li>
+                    <li>Genau 1x Strich (<code>+</code>/<code>-</code>)</li>
                 </ul>
-                <code style="display:block; margin-top:5px;">Beispiel: 3 · 4 + 5 = 17</code>
             </div>
 
             <div class="help-card">
-                <h4 style="color: #facc15;">🟡 Fortgeschritten</h4>
-                <p>Erlaubt: <code>+</code> <code>-</code> <code>:</code></p>
-                <ul>
-                    <li>Genau 1x Geteilt-Rechnung (<code>:</code>)</li>
-                    <li>Genau 1x Strich-Rechnung (<code>+</code> oder <code>-</code>)</li>
+                 <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h4 style="color: #facc15; margin:0;">🟡 Fortgeschritten</h4>
+                </div>
+                <div style="margin-top:10px; display:flex; gap:10px; font-family:monospace; font-size:1.2rem;">
+                    <span style="background:rgba(255,255,255,0.1); padding:4px 8px; border-radius:4px;">+</span>
+                    <span style="background:rgba(255,255,255,0.1); padding:4px 8px; border-radius:4px;">-</span>
+                    <span style="background:rgba(255,255,255,0.1); padding:4px 8px; border-radius:4px;">:</span>
+                </div>
+                <ul style="margin-top:10px; font-size:0.9rem;">
+                    <li>Genau 1x Geteilt (<code>:</code>)</li>
+                    <li>Genau 1x Strich (<code>+</code>/<code>-</code>)</li>
                 </ul>
-                <code style="display:block; margin-top:5px;">Beispiel: 8 : 4 + 2 = 4</code>
             </div>
 
             <div class="help-card">
-                <h4 style="color: #f87171;">🔴 Profi (Experten)</h4>
-                <p>Erlaubt: <code>( )</code> <code>+</code> <code>-</code> <code>·</code> <code>:</code></p>
-                <ul>
-                    <li><strong>Klammerpflicht!</strong></li>
-                    <li>Punktrechnung darf <strong>NICHT</strong> in der Klammer stehen.</li>
-                    <li>Struktur: <code>(A ± B) · C</code> oder <code>C · (A ± B)</code></li>
-                </ul>
-                <code style="display:block; margin-top:5px;">Richtig: (3 + 4) · 5 = 35</code>
-                <code style="display:block; color:#ef4444;">Falsch: (3 · 4) + 5</code>
+                 <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h4 style="color: #f87171; margin:0;">🔴 Profi</h4>
+                    <span style="font-size:0.8rem; background:rgba(248, 113, 113, 0.1); padding:2px 6px; border-radius:4px; color:#f87171;">Experten</span>
+                </div>
+                <p style="margin-top:5px; font-size:0.9rem;">Klammerpflicht!</p>
+                <div style="background:#1e293b; padding:8px; border-radius:6px; font-family:monospace; margin-top:5px;">
+                    ( A ± B ) ·/: C
+                </div>
+                <p style="font-size:0.8rem; margin-top:5px; color:#94a3b8;">Punktrechnung (· oder :) muss ausserhalb der Klammer stehen.</p>
             </div>
 
             <div class="help-card">
-                <h4 style="color: #c084fc;">🟣 Verrückt (Crazy)</h4>
-                <p>Alles ist erlaubt! Punkte je nach Komplexität (1-3).</p>
+                <h4 style="color: #c084fc;">🟣 Verrückt</h4>
+                <p>Alles erlaubt! Punkte (1-3) je nach Komplexität.</p>
             </div>
         `
     },
     settings: {
         title: "Einstellungen",
         content: `
-            <h3>Spiel konfigurieren</h3>
-            <ul>
-                <li><strong>Zahlenraum:</strong>
-                    <ul>
-                        <li><em style="color:#fbbf24;">1-9:</em> Zielzahlen bis 50. Einfacher.</li>
-                        <li><em style="color:#fbbf24;">1-20:</em> Zielzahlen bis 100. Kniffliger.</li>
-                    </ul>
-                </li>
-                <li><strong>Gittergröße:</strong> 5x5 (Klein), 7x7 (Standard), 9x9 (Groß).</li>
-                <li><strong>Hardcore Modus 🔥:</strong>
-                    <br>Bei falscher Antwort wird dir ein Punkt <strong>abgezogen</strong>!
-                </li>
-                <li><strong>Lehrer / Host:</strong>
-                    <br>Der Host kann "Beobachten erlauben" aktivieren, damit alle sehen, was gerechnet wird.
-                </li>
-            </ul>
+            <h3>Konfiguration</h3>
+            
+            <div class="help-card">
+                <h4>🔢 Zahlenraum</h4>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
+                    <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:6px; text-align:center;">
+                        <span style="display:block; color:#fbbf24; font-weight:bold;">1-9</span>
+                        <span style="font-size:0.8rem;">Ziel bis 50</span>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:6px; text-align:center;">
+                        <span style="display:block; color:#fbbf24; font-weight:bold;">1-20</span>
+                        <span style="font-size:0.8rem;">Ziel bis 100</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="help-card">
+                <h4>📏 Gittergrösse</h4>
+                <p>5x5 (Klein), 7x7 (Standard), 9x9 (Gross)</p>
+            </div>
+
+            <div class="help-card">
+                 <h4>🔥 Hardcore Modus</h4>
+                 <p>Für Profis: Bei einer falschen Antwort verlierst du <strong>einen Punkt</strong>!</p>
+            </div>
+            
+            <div class="help-card">
+                 <h4>👁️ Lehrer Modus</h4>
+                 <p>Der Host kann <strong>"Beobachten"</strong> aktivieren. Alle Spieler sehen dann live, was der aktive Spieler rechnet.</p>
+            </div>
         `
     },
     tips: {
         title: "Tipps & Tricks",
         content: `
-            <h3>App installieren (PWA)</h3>
-            <p>Für das beste Erlebnis (Vollbild, keine Adressleiste) füge die App zum Startbildschirm hinzu.</p>
-            <ul>
-                <li><strong>iOS:</strong> Teilen-Button -> "Zum Home-Bildschirm"</li>
-                <li><strong>Android:</strong> Menü -> "App installieren"</li>
-            </ul>
+            <h3>App installieren</h3>
+            <p style="margin-bottom:20px;">Füge die App zum Startbildschirm hinzu für Vollbild-Modus.</p>
+            <div style="display:flex; gap:10px; margin-bottom:30px;">
+                <div style="flex:1; background:rgba(255,255,255,0.05); padding:10px; border-radius:8px;">
+                    <strong>iOS</strong><br>
+                    Teilen <span style="font-family:serif;">⎋</span> &rarr; "Zum Home-Bildschirm"
+                </div>
+                <div style="flex:1; background:rgba(255,255,255,0.05); padding:10px; border-radius:8px;">
+                    <strong>Android</strong><br>
+                    Menü &rarr; "App installieren"
+                </div>
+            </div>
             
             <h3>QR-Code Scan</h3>
-            <p>In der Lobby findest du einen QR-Code. Deine Freunde können diesen direkt scannen, um beizutreten (das Spiel öffnet sich automatisch!).</p>
+            <p>Freunde können den QR-Code in der Lobby scannen und landen direkt im Spiel!</p>
         `
     }
 };
@@ -3076,6 +3157,7 @@ function renderHelpPage(pageId) {
     // Show/Hide Back Button logic
     if (pageId === 'home') {
         backBtn.style.display = 'none';
+        title.innerText = "Anleitung"; // Override Header for Home
     } else {
         backBtn.style.display = 'block';
     }

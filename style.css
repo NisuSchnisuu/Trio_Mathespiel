@@ -2147,3 +2147,67 @@ body {
     font-size: 0.9rem;
     color: var(--text-muted);
 }
+
+/* HELP VISUALIZATIONS */
+.help-grid-examples {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin: 20px 0;
+    flex-wrap: wrap;
+}
+
+.mini-grid-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.mini-grid-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.mini-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    background: #334155;
+    padding: 2px;
+    border-radius: 4px;
+    width: 60px;
+    height: 60px;
+}
+
+.mini-cell {
+    background: #1e293b;
+    border-radius: 2px;
+    width: 100%;
+    height: 100%;
+}
+
+.mini-cell.selected {
+    background: var(--success);
+    box-shadow: 0 0 4px var(--success);
+}
+
+.mini-cell.invalid {
+    background: var(--danger);
+    opacity: 0.5;
+}
+
+.help-step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 50%;
+    font-weight: bold;
+    font-size: 0.9rem;
+    margin-right: 8px;
+}
