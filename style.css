@@ -1814,57 +1814,143 @@ select option {
         grid-template-columns: 1fr;
         /* Stack cards */
     }
+}
 
-    .install-content {
-        width: 100%;
-        max-width: 100% !important;
-        border-radius: 0;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        margin: 0;
-    }
+/* Help System Styles (Global) */
+.btn-icon-help:hover {
+    background: rgba(255, 255, 255, 0.2) !important;
+    transform: scale(1.05);
+}
 
-    /* GLOBAL APP SCALING */
-    :root {
-        --mobile-scale: 0.85;
-        /* Scale down everything slightly */
-    }
+.btn-help-nav {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+}
 
-    body {
-        font-size: 14px;
-        /* Base size reduction */
-    }
+.btn-help-nav.active {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
 
-    /* Make Grid Smaller to fit */
-    .game-grid-container {
-        padding: 5px;
-        /* Minimal padding */
-    }
+.btn-help-nav:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+}
 
-    .grid-cell {
-        font-size: 1.1rem;
-        /* Smaller numbers */
-        border-radius: 4px;
-    }
+/* Help Content Typography */
+#help-content-area h3 {
+    color: var(--primary-color);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 5px;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
 
-    /* Dashboard Elements */
-    .target-number {
-        font-size: 2.5rem;
-    }
+#help-content-area p {
+    margin-bottom: 15px;
+    color: #e2e8f0;
+}
 
-    .buzzer-container button {
-        padding: 15px;
-        font-size: 1.5rem;
-    }
+#help-content-area ul {
+    margin-bottom: 15px;
+    padding-left: 20px;
+}
 
-    /* Ensure Game View doesn't scroll if possible */
-    #game-view {
-        padding: 10px;
-        gap: 10px;
-        height: 100vh;
-        overflow: hidden;
-    }
+#help-content-area li {
+    margin-bottom: 5px;
+    color: #cbd5e1;
+}
+
+#help-content-area code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    color: #fbbf24;
+}
+
+.help-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 15px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.help-card:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.help-card h4 {
+    margin: 0 0 5px 0;
+    color: white;
+}
+
+.help-card p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.install-content {
+    width: 100%;
+    max-width: 100% !important;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    margin: 0;
+}
+
+/* GLOBAL APP SCALING */
+:root {
+    --mobile-scale: 0.85;
+    /* Scale down everything slightly */
+}
+
+body {
+    font-size: 14px;
+    /* Base size reduction */
+}
+
+/* Make Grid Smaller to fit */
+.game-grid-container {
+    padding: 5px;
+    /* Minimal padding */
+}
+
+.grid-cell {
+    font-size: 1.1rem;
+    /* Smaller numbers */
+    border-radius: 4px;
+}
+
+/* Dashboard Elements */
+.target-number {
+    font-size: 2.5rem;
+}
+
+.buzzer-container button {
+    padding: 15px;
+    font-size: 1.5rem;
+}
+
+/* Ensure Game View doesn't scroll if possible */
+#game-view {
+    padding: 10px;
+    gap: 10px;
+    height: 100vh;
+    overflow: hidden;
+}
 }
 
 /* 3. ROTATE DEVICE OVERLAY */
@@ -1976,4 +2062,88 @@ select option {
         font-size: 0.7rem;
         padding: 2px 4px;
     }
+}
+
+/* HELP SYSTEM STYLES (Appended) */
+.btn-icon-help:hover {
+    background: rgba(255, 255, 255, 0.2) !important;
+    transform: scale(1.05);
+}
+
+.btn-help-nav {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+}
+
+.btn-help-nav.active {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.btn-help-nav:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+}
+
+#help-content-area h3 {
+    color: var(--primary-color);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 5px;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+#help-content-area p {
+    margin-bottom: 15px;
+    color: #e2e8f0;
+}
+
+#help-content-area ul {
+    margin-bottom: 15px;
+    padding-left: 20px;
+}
+
+#help-content-area li {
+    margin-bottom: 5px;
+    color: #cbd5e1;
+}
+
+#help-content-area code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    color: #fbbf24;
+}
+
+.help-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 15px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.help-card:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.help-card h4 {
+    margin: 0 0 5px 0;
+    color: white;
+}
+
+.help-card p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-muted);
 }

@@ -291,6 +291,7 @@ function enableQuickJoinMode() {
 function setupEventListeners() {
     setupLobbyNewEvents(); // Bind new lobby buttons
     setupTeacherShortcut(); // Init shortcut
+    setupHelpSystem(); // Init Help System
 
     // Teacher Broadcast Toggle Listener
     const cbBroadcast = document.getElementById('cb-teacher-broadcast');
@@ -2888,4 +2889,197 @@ function toggleTeacherMode() {
         if (btn) btn.style.display = 'none';
         if (obs) obs.style.display = 'none';
     }
+}
+
+// --- HELP SYSTEM LOGIC ---
+const helpPages = {
+    home: {
+        title: "Willkommen",
+        content: `
+            <h3>Dein Wegweiser durch Trio</h3>
+            <p>Trio ist ein schnelles Kopfrechenspiel, bei dem du drei Zahlen finden musst, die eine Zielzahl ergeben.</p>
+            <div style="display: grid; gap: 10px;">
+                <div class="help-card" onclick="renderHelpPage('gameplay')">
+                    <h4>🎮 Spielprinzip</h4>
+                    <p>Wie funktioniert das Spiel? Suchen, Buzzern, Rechnen.</p>
+                </div>
+                <div class="help-card" onclick="renderHelpPage('modes')">
+                    <h4>⚡ Schwierigkeitsstufen</h4>
+                    <p>Von Normal bis Verrückt - alle Regeln im Überblick.</p>
+                </div>
+                <div class="help-card" onclick="renderHelpPage('settings')">
+                    <h4>⚙️ Einstellungen</h4>
+                    <p>Zahlenraum, Gittergröße und Hardcore-Modus.</p>
+                </div>
+                <div class="help-card" onclick="renderHelpPage('tips')">
+                    <h4>💡 Tipps & Tricks</h4>
+                    <p>App installieren, QR-Codes und mehr.</p>
+                </div>
+            </div>
+        `
+    },
+    gameplay: {
+        title: "Spielprinzip",
+        content: `
+            <h3>So wird gespielt</h3>
+            <ol>
+                <li>
+                    <strong>Suchen & Buzzern:</strong><br>
+                    Alle Spieler sehen das gleiche Zahlen-Gitter und eine <strong>Zielzahl</strong> (z.B. 42).<br>
+                    Wer eine Lösung im Kopf hat, drückt sofort den roten <strong>"TRIO!"-Buzzer</strong>.
+                </li>
+                <li>
+                    <strong>Auswählen (10 Sek.):</strong><br>
+                    Wähle jetzt 3 Zahlen im Gitter aus.<br>
+                    ⚠️ <strong>Regel:</strong> Die Zahlen müssen auf einer <strong>Linie</strong> liegen (waagerecht, senkrecht oder diagonal) und denselben Abstand haben.
+                </li>
+                <li>
+                    <strong>Rechnen:</strong><br>
+                    Ein Taschenrechner öffnet sich. Baue aus deinen 3 Zahlen eine Rechnung, die exakt die Zielzahl ergibt.<br>
+                    <em>Beispiel: Ziel 12 aus (3, 4, 1) -> 3 · 4 · 1 = 12</em>
+                </li>
+            </ol>
+            <p>Welche Rechenzeichen erlaubt sind, hängt von der <a href="#" onclick="renderHelpPage('modes'); return false;" style="color:var(--primary-color);">Schwierigkeitsstufe</a> ab.</p>
+        `
+    },
+    modes: {
+        title: "Schwierigkeitsstufen",
+        content: `
+            <h3>Modi & Regeln</h3>
+            <p>Hier siehst du, welche Rechenzeichen in welchem Modus erlaubt sind.</p>
+
+            <div class="help-card" onclick="this.classList.toggle('active')">
+                <h4 style="color: #4ade80;">🟢 Normal (Einsteiger)</h4>
+                <p>Erlaubt: <code>+</code> <code>-</code> <code>·</code></p>
+                <ul>
+                    <li>Genau 1x Mal-Rechnung (<code>·</code>)</li>
+                    <li>Genau 1x Strich-Rechnung (<code>+</code> oder <code>-</code>)</li>
+                </ul>
+                <code style="display:block; margin-top:5px;">Beispiel: 3 · 4 + 5 = 17</code>
+            </div>
+
+            <div class="help-card">
+                <h4 style="color: #facc15;">🟡 Fortgeschritten</h4>
+                <p>Erlaubt: <code>+</code> <code>-</code> <code>:</code></p>
+                <ul>
+                    <li>Genau 1x Geteilt-Rechnung (<code>:</code>)</li>
+                    <li>Genau 1x Strich-Rechnung (<code>+</code> oder <code>-</code>)</li>
+                </ul>
+                <code style="display:block; margin-top:5px;">Beispiel: 8 : 4 + 2 = 4</code>
+            </div>
+
+            <div class="help-card">
+                <h4 style="color: #f87171;">🔴 Profi (Experten)</h4>
+                <p>Erlaubt: <code>( )</code> <code>+</code> <code>-</code> <code>·</code> <code>:</code></p>
+                <ul>
+                    <li><strong>Klammerpflicht!</strong></li>
+                    <li>Punktrechnung darf <strong>NICHT</strong> in der Klammer stehen.</li>
+                    <li>Struktur: <code>(A ± B) · C</code> oder <code>C · (A ± B)</code></li>
+                </ul>
+                <code style="display:block; margin-top:5px;">Richtig: (3 + 4) · 5 = 35</code>
+                <code style="display:block; color:#ef4444;">Falsch: (3 · 4) + 5</code>
+            </div>
+
+            <div class="help-card">
+                <h4 style="color: #c084fc;">🟣 Verrückt (Crazy)</h4>
+                <p>Alles ist erlaubt! Punkte je nach Komplexität (1-3).</p>
+            </div>
+        `
+    },
+    settings: {
+        title: "Einstellungen",
+        content: `
+            <h3>Spiel konfigurieren</h3>
+            <ul>
+                <li><strong>Zahlenraum:</strong>
+                    <ul>
+                        <li><em style="color:#fbbf24;">1-9:</em> Zielzahlen bis 50. Einfacher.</li>
+                        <li><em style="color:#fbbf24;">1-20:</em> Zielzahlen bis 100. Kniffliger.</li>
+                    </ul>
+                </li>
+                <li><strong>Gittergröße:</strong> 5x5 (Klein), 7x7 (Standard), 9x9 (Groß).</li>
+                <li><strong>Hardcore Modus 🔥:</strong>
+                    <br>Bei falscher Antwort wird dir ein Punkt <strong>abgezogen</strong>!
+                </li>
+                <li><strong>Lehrer / Host:</strong>
+                    <br>Der Host kann "Beobachten erlauben" aktivieren, damit alle sehen, was gerechnet wird.
+                </li>
+            </ul>
+        `
+    },
+    tips: {
+        title: "Tipps & Tricks",
+        content: `
+            <h3>App installieren (PWA)</h3>
+            <p>Für das beste Erlebnis (Vollbild, keine Adressleiste) füge die App zum Startbildschirm hinzu.</p>
+            <ul>
+                <li><strong>iOS:</strong> Teilen-Button -> "Zum Home-Bildschirm"</li>
+                <li><strong>Android:</strong> Menü -> "App installieren"</li>
+            </ul>
+            
+            <h3>QR-Code Scan</h3>
+            <p>In der Lobby findest du einen QR-Code. Deine Freunde können diesen direkt scannen, um beizutreten (das Spiel öffnet sich automatisch!).</p>
+        `
+    }
+};
+
+function setupHelpSystem() {
+    const btnOpen = document.getElementById('btn-open-help');
+    const btnClose = document.getElementById('btn-close-help');
+    const btnBack = document.getElementById('btn-help-back');
+    const modal = document.getElementById('help-modal');
+
+    if (btnOpen) {
+        btnOpen.addEventListener('click', () => {
+            renderHelpPage('home'); // Reset to home on open
+            modal.classList.add('active');
+        });
+    }
+
+    if (btnClose) {
+        btnClose.addEventListener('click', () => {
+            modal.classList.remove('active');
+        });
+    }
+
+    if (btnBack) {
+        btnBack.addEventListener('click', () => {
+            renderHelpPage('home');
+        });
+    }
+
+    // Navigation Buttons
+    document.querySelectorAll('.btn-help-nav').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const target = btn.dataset.target;
+            if (target) renderHelpPage(target);
+        });
+    });
+}
+
+function renderHelpPage(pageId) {
+    const page = helpPages[pageId] || helpPages['home'];
+    const contentArea = document.getElementById('help-content-area');
+    const title = document.getElementById('help-modal-title');
+    const backBtn = document.getElementById('btn-help-back');
+
+    // Update Content
+    title.innerText = page.title;
+    contentArea.innerHTML = page.content;
+
+    // Update Nav Buttons State
+    document.querySelectorAll('.btn-help-nav').forEach(btn => {
+        if (btn.dataset.target === pageId) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+
+    // Show/Hide Back Button logic
+    if (pageId === 'home') {
+        backBtn.style.display = 'none';
+    } else {
+        backBtn.style.display = 'block';
+    }
+
+    // Scroll to top
+    contentArea.scrollTop = 0;
 }

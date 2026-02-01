@@ -168,7 +168,13 @@
         <div class="lobby-container">
             <!-- LEFT: Intro & Name -->
             <div class="lobby-left">
-                <h1 class="game-title" style="margin-bottom: 10px; font-size: 4rem;">TRIO</h1>
+                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+                    <h1 class="game-title" style="margin: 0; font-size: 4rem;">TRIO</h1>
+                    <button id="btn-open-help" class="btn-icon-help" title="Anleitung & Hilfe"
+                        style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: var(--text-muted); cursor: pointer; transition: all 0.2s;">
+                        ?
+                    </button>
+                </div>
                 <p style="color: var(--text-muted); margin-bottom: 40px; font-size: 1.2rem;">Das ultimative Mathe-Battle
                 </p>
 
@@ -642,6 +648,39 @@
             <div id="app-modal-actions" style="display: flex; gap: 10px; justify-content: center;">
                 <button id="app-modal-cancel" class="btn-secondary" style="flex: 1;">Abbrechen</button>
                 <button id="app-modal-confirm" class="btn-primary" style="flex: 1;">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- HELP MODAL -->
+    <div id="help-modal" class="modal-overlay">
+        <div class="modal-content"
+            style="width: 95%; max-width: 700px; height: 85vh; padding: 0; display: flex; flex-direction: column; overflow: hidden;">
+            <!-- Header -->
+            <div
+                style="padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <button id="btn-help-back"
+                        style="background: none; border: none; color: var(--text-muted); font-size: 1.2rem; cursor: pointer; display: none;">
+                        ←
+                    </button>
+                    <h2 id="help-modal-title" style="margin: 0;">Anleitung</h2>
+                </div>
+                <button id="btn-close-help" class="btn-icon-close"
+                    style="width:32px; height:32px; font-size:1.2rem;">&times;</button>
+            </div>
+
+            <!-- Content Area (Scrollable) -->
+            <div id="help-content-area" style="flex: 1; overflow-y: auto; padding: 25px; line-height: 1.6;">
+                <!-- DYNAMIC CONTENT HERE -->
+            </div>
+
+            <!-- Footer (Optional Navigation) -->
+            <div id="help-footer"
+                style="padding: 15px; border-top: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); display: flex; justify-content: space-around;">
+                <button class="btn-help-nav active" data-target="home">🏠 Übersicht</button>
+                <button class="btn-help-nav" data-target="gameplay">🎮 Spielprinzip</button>
+                <button class="btn-help-nav" data-target="modes">⚡ Modi</button>
             </div>
         </div>
     </div>
