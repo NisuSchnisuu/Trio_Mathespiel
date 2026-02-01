@@ -186,6 +186,12 @@
 
             <!-- RIGHT: Actions -->
             <div class="lobby-right">
+                <!-- Class Game Trigger (Hidden by default) -->
+                <button class="btn-primary" id="btn-class-game"
+                    style="width:100%; background: linear-gradient(135deg, #8b5cf6, #d946ef); border-color: #8b5cf6; padding: 18px; font-size: 1.2rem; margin-bottom: 20px; display: none;">
+                    🎓 Klassenspiel starten
+                </button>
+
                 <!-- Create Game Trigger -->
                 <button class="btn-primary" id="btn-open-create-modal"
                     style="width:100%; background: var(--success); border-color: var(--success); padding: 18px; font-size: 1.2rem;">
@@ -278,6 +284,16 @@
                     </select>
                     <input type="number" id="custom-score" placeholder="Punkte"
                         style="width:100%; border-radius: 8px; display: none;">
+                </div>
+            </div>
+
+            <!-- Teacher Mode: Observe Setting (Hidden by default) -->
+            <div class="setting-card" id="setting-observe-container" style="display: none; margin-bottom: 20px;">
+                <label for="observe-mode">Beobachten erlauben?</label>
+                <p class="setting-desc">Sehen andere, was gerechnet wird?</p>
+                <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
+                    <input type="checkbox" id="observe-mode" checked style="width: 20px; height: 20px;">
+                    <span style="font-size: 0.9rem; color: #cbd5e1;">Ja, Live-Übertragung an alle</span>
                 </div>
             </div>
 

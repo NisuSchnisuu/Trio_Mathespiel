@@ -65,7 +65,12 @@ let appState = {
     vetoVotes: {},
     isLocked: false,
     lockedUntil: null,
-    penaltyInterval: null
+    isLocked: false,
+    lockedUntil: null,
+    penaltyInterval: null,
+
+    // Teacher Mode State
+    teacherMode: false // Local toggle state
 };
 
 // --- View Management ---
@@ -276,6 +281,7 @@ function enableQuickJoinMode() {
 // --- Event Listeners ---
 function setupEventListeners() {
     setupLobbyNewEvents(); // Bind new lobby buttons
+    setupTeacherShortcut(); // Init shortcut
 
     // 1. OPEN CREATE MODAL
     if (buttons.createGameTrigger) {
@@ -286,8 +292,14 @@ function setupEventListeners() {
             // Save name
             localStorage.setItem('trio_player_name', name);
 
+            appState.tempIsTeacherCreate = false; // Normal mode
+
             // Open Modal
             document.getElementById('create-game-modal').classList.add('active');
+
+            // Hide Observe setting for normal game
+            const obs = document.getElementById('setting-observe-container');
+            if (obs) obs.style.display = 'none';
         });
     }
 
@@ -317,7 +329,8 @@ function setupEventListeners() {
             document.getElementById('create-game-modal').classList.remove('active');
 
             // Trigger Game Creation
-            createGame(name);
+            // Check flag from Teacher button
+            createGame(name, appState.tempIsTeacherCreate || false);
         });
     }
 
@@ -437,14 +450,14 @@ function showModal(title, message, onConfirm, isAlert = false, confirmText = 'OK
 
 // --- Firebase Logic ---
 
-function createGame(playerName) {
+function createGame(playerName, isTeacherGame = false) {
     const shortId = Math.floor(10000 + Math.random() * 90000).toString(); // 5 digit code
     const gameRef = db.ref(`games/${shortId}`);
 
     gameRef.once('value').then(snapshot => {
         if (snapshot.exists()) {
             // Collision? Retry recursively
-            createGame(playerName);
+            createGame(playerName, isTeacherGame);
             return;
         }
 
@@ -462,6 +475,13 @@ function createGame(playerName) {
         if (!wScore || wScore < 1) wScore = 10; // Fallback
         appState.winningScore = wScore;
 
+        // Teacher Settings
+        const observeMode = document.getElementById('observe-mode').checked;
+
+        // Use teacher mode from arg or existing appState? 
+        // Logic: specific button passes isTeacherGame=true.
+        appState.isTeacherMode = isTeacherGame; // Set local state active so host sees it right
+
         // Host Player ID (still needs to be unique inside the game)
         // We can use a simple random string for player ID too since it's local scope
         // But push() is fine for players list.
@@ -476,8 +496,11 @@ function createGame(playerName) {
                 gridSize: appState.gridSize,
                 difficulty: appState.difficulty,
                 gridSize: appState.gridSize,
+                gridSize: appState.gridSize,
                 winningScore: appState.winningScore,
-                numberRange: appState.numberRange || 'base'
+                numberRange: appState.numberRange || 'base',
+                teacherMode: isTeacherGame,
+                observeMode: isTeacherGame ? observeMode : true // Default true for normal games
             },
             hostId: appState.playerId,
             createdAt: firebase.database.ServerValue.TIMESTAMP
@@ -697,6 +720,12 @@ function subscribeToGame(gameId) {
             appState.gridSize = data.settings.gridSize;
             appState.difficulty = data.settings.difficulty;
             if (data.settings.winningScore) appState.winningScore = data.settings.winningScore;
+
+            // Sync Teacher Settings
+            appState.settings = data.settings; // Keep reference
+
+            // Note: appState.teacherMode is local UI toggle. 
+            // We should use appState.settings.teacherMode for game logic.
 
             // Update difficulty badge
             const diffEl = document.getElementById('difficulty-display');
@@ -1408,6 +1437,19 @@ function handleModalSync(remoteState) {
 
     // 1. Open/Close State
     if (remoteState.isOpen) {
+
+        // CHECK OBSERVE MODE BEFORE OPENING
+        // Helper Vars (Declared ONCE)
+        const headerOwner = appState.buzzerOwner;
+        const isOwner = (headerOwner === appState.playerId);
+        const observeMode = (appState.settings && appState.settings.observeMode !== undefined) ? appState.settings.observeMode : true;
+
+        if (!isOwner && !observeMode) {
+            // Do not open modal for observers
+            modal.classList.remove('active'); // Force close/hide
+            return;
+        }
+
         modal.classList.add('active');
         modal.style.display = 'flex';
 
@@ -1416,12 +1458,6 @@ function handleModalSync(remoteState) {
         if (targetEl) targetEl.innerText = `Ziel: ${appState.target}`;
 
         // Check local owner vs observer
-        // Check local owner vs observer
-        // Use appState.buzzerOwner directly. Note: on reload it might be null initially.
-        // If null, we default to read-only.
-        const headerOwner = appState.buzzerOwner;
-        const isOwner = (headerOwner === appState.playerId);
-
         if (isOwner) {
             modal.classList.remove('read-only');
         } else {
@@ -1430,13 +1466,12 @@ function handleModalSync(remoteState) {
             if (!wasActive) {
                 // Initial open or reload
                 populateModalButtons(true);
-            } else {
-                // If it was active, maybe just update?
-                // But if we reload, wasActive is false.
             }
         }
 
-        // 2. Formula Sync
+        // 2. Formula Sync (Respect Observe Mode)
+        // (Redundant check removed as we return early above if !observeMode)
+
         if (remoteState.formula !== undefined) {
             modalState.formula = remoteState.formula;
             updateFormulaDisplay();
@@ -2324,12 +2359,26 @@ function renderPlayersList(players) {
     const list = players ? Object.values(players) : [];
     list.sort((a, b) => (b.score || 0) - (a.score || 0));
 
-    // Calculate Ranks (Dense ranking)
-    // 10, 8, 8, 5 -> Rank 1, 2, 2, 3
-    let currentRank = 1;
-    let lastScore = list.length > 0 ? (list[0].score || 0) : -1;
+    // Limit to top 4 if Teacher Mode
+    let displayList = list;
+    if (appState.settings && appState.settings.teacherMode && appState.currentView === 'game') {
+        displayList = list.slice(0, 4);
+    }
 
-    list.forEach((p, index) => {
+    // Calculate Ranks from FULL list or display list? 
+    // Usually ranks are global. So calculate ranks on 'list', then filter 'displayList' logic 
+    // BUT render loop uses displayList. 
+    // Better: Iterate 'displayList' but use 'list' for rank context if needed. 
+    // Simple approach: The top 4 ARE the top 4, so their ranks are 1,2,3,4 anyway.
+
+    // Logic for dense ranking needs linear walk.
+    // If we only show top 4, we just render them. 
+    // Wait, render loop does ranking onsite.
+
+    let currentRank = 1;
+    let lastScore = displayList.length > 0 ? (displayList[0].score || 0) : -1;
+
+    displayList.forEach((p, index) => {
         const pScore = p.score || 0;
         if (pScore < lastScore) {
             currentRank++; // Move to next rank if score is lower
@@ -2592,3 +2641,77 @@ function setupLobbyNewEvents() {
 
 
 
+// --- Teacher Mode Logic ---
+function setupTeacherShortcut() {
+    document.addEventListener('keydown', (e) => {
+        // Shift + Alt + L
+        if (e.shiftKey && e.altKey && (e.key === 'L' || e.key === 'l')) {
+            toggleTeacherMode();
+        }
+    });
+
+    // Class Game Button Listener
+    const btnClass = document.getElementById('btn-class-game');
+    if (btnClass) {
+        btnClass.addEventListener('click', () => {
+            const name = inputs.playerName.value.trim();
+            if (!name) { showMessage('Fehler', 'Bitte gib deinen Namen ein!'); return; }
+
+            // Save name
+            localStorage.setItem('trio_player_name', name);
+
+            // Open Modal BUT set context to teacher (for confirm button)
+            appState.tempIsTeacherCreate = true;
+            document.getElementById('create-game-modal').classList.add('active');
+
+            // Show Observe Setting
+            const obs = document.getElementById('setting-observe-container');
+            if (obs) obs.style.display = 'flex';
+        });
+    }
+
+    // Normal Create Button Listener override/hook
+    // We already have a listener for 'btn-open-create-modal' in setupEventListeners.
+    // We should ensure it resets the flag.
+    const btnNormal = document.getElementById('btn-open-create-modal');
+    if (btnNormal) {
+        // We can't easily remove anonymous listener, but we can add one that runs before/after.
+        btnNormal.addEventListener('click', () => {
+            appState.tempIsTeacherCreate = false;
+        });
+    }
+
+    // Update Confirm Handler logic?
+    // The confirm handler in setupEventListeners uses createGame(name).
+    // We need to pass the flag.
+    // The existing handler is: 
+    // buttons.createGameConfirm.addEventListener('click', () => { ... createGame(name) ... })
+    // We need to replace or modify it. 
+    // Use appState.tempIsTeacherCreate inside the existing createGame function? 
+    // No, createGame call in existing listener doesn't pass arg.
+    // MODIFYING EXISTING LISTENER via code replacement above is hard because it's inside init.
+
+    // BETTER: Modify the existing listener in setupEventListeners to use the flag.
+}
+
+function toggleTeacherMode() {
+    appState.teacherMode = !appState.teacherMode;
+    const btn = document.getElementById('btn-class-game');
+    const obs = document.getElementById('setting-observe-container');
+
+    if (appState.teacherMode) {
+        if (btn) {
+            btn.style.display = 'block';
+            // Animation?
+            btn.animate([{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 300 });
+        }
+        if (obs) obs.style.display = 'flex'; // Show setting in modal always if teacher mode active? 
+        // User said: "Wenn man auf diesen Klickt... Dort soll es jetzt aber noch eine Zusätzlice Checkbox sein"
+        // So ONLY show checkbox if we clicked class game? 
+        // If I click normal game, hidden?
+        // Okay, let's bind checkbox visibility to the `appState.tempIsTeacherCreate` flag update.
+    } else {
+        if (btn) btn.style.display = 'none';
+        if (obs) obs.style.display = 'none';
+    }
+}
