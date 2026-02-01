@@ -836,153 +836,158 @@ function setupQRScanner() {
     const scanBtn = document.getElementById('btn-scan-qr');
     const qrModal = document.getElementById('qr-modal');
     const closeQrBtn = document.getElementById('btn-close-qr');
+    const closeQrBtn = document.getElementById('btn-close-qr');
     let html5QrcodeScanner = null;
+    let permissionGranted = false; // Cache permission status
 
     if (scanBtn) {
         scanBtn.addEventListener('click', async () => {
             qrModal.classList.add('active');
 
-            // Explicit Permission Request Logic
-            try {
-                // Check if API is available
-                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    throw new Error("Browser API not available (Non-Secure Context?)");
-                }
-
-                // Request Permission explicitly first
-                const constraints = {
-                    video: {
-                        facingMode: "environment",
-                        zoom: true, // Request zoom capability
-                        width: { ideal: 1920 }, // Higher res often helps with zoom availability
-                        height: { ideal: 1080 }
+            // Explicit Permission Request Logic (Only if not already granted)
+            if (!permissionGranted) {
+                try {
+                    // Check if API is available
+                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                        throw new Error("Browser API not available (Non-Secure Context?)");
                     }
-                };
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
-                // If successful, stop this stream immediately to release camera for the library
-                stream.getTracks().forEach(track => track.stop());
+                    // Request Permission explicitly first
+                    const constraints = {
+                        video: {
+                            facingMode: "environment",
+                            zoom: true, // Request zoom capability
+                            width: { ideal: 1920 }, // Higher res often helps with zoom availability
+                            height: { ideal: 1080 }
+                        }
+                    };
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
-            } catch (err) {
-                console.warn("Permission check failed:", err);
-                const isSecure = window.isSecureContext;
-                let msg = "Kamera-Zugriff verweigert oder nicht unterstützt.";
-                if (!isSecure) {
-                    msg += "\n\n⚠️ HINWEIS: Auf mobilen Geräten funktioniert die Kamera nur über HTTPS oder Localhost. Wenn du über eine IP-Adresse zugreifst, blockiert der Browser die Kamera.";
-                } else {
-                    msg += "\nBitte Kamera-Berechtigung in den Browser-Einstellungen prüfen.";
+                    // If successful, stop this stream immediately to release camera for the library
+                    stream.getTracks().forEach(track => track.stop());
+
+                    // Mark as granted so we don't ask again this session
+                    permissionGranted = true;
+
+                } catch (err) {
+                    console.warn("Permission check failed:", err);
+                    const isSecure = window.isSecureContext;
+                    let msg = "Kamera-Zugriff verweigert oder nicht unterstützt.";
+                    if (!isSecure) {
+                        msg += "\n\n⚠️ HINWEIS: Auf mobilen Geräten funktioniert die Kamera nur über HTTPS oder Localhost. Wenn du über eine IP-Adresse zugreifst, blockiert der Browser die Kamera.";
+                    } else {
+                        msg += "\nBitte Kamera-Berechtigung in den Browser-Einstellungen prüfen.";
+                    }
+                    alert(msg);
+                    qrModal.classList.remove('active');
+                    return;
                 }
-                alert(msg);
-                // We still try to start the scanner below, just in case the check was a false negative or library handles it differently,
-                // BUT usually if getUserMedia fails, the library will fail too. 
-                // Let's return here to avoid double error alerts? 
-                // User asked "Can we request permission first?". 
-                // If this catch block is hit, permission was denied or not possible.
-                qrModal.classList.remove('active');
-                return;
             }
+            qrModal.classList.remove('active');
+            return;
+        }
 
             // Init Scanner Library
             if (!html5QrcodeScanner) {
-                // Verbose false
-                html5QrcodeScanner = new Html5Qrcode("reader", false);
+            // Verbose false
+            html5QrcodeScanner = new Html5Qrcode("reader", false);
+        }
+
+        // OPTIMIZATION:
+        // 1. fps: 15 (faster scanning)
+        // 2. qrbox: slightly larger
+        // 3. aspectRatio: 1.0 (square)
+        // 4. experimentalFeatures: useBarCodeDetectorIfSupported (uses native android API if available -> super fast)
+        const config = {
+            fps: 15,
+            qrbox: { width: 300, height: 300 },
+            aspectRatio: 1.0,
+            experimentalFeatures: {
+                useBarCodeDetectorIfSupported: true
             }
+        };
 
-            // OPTIMIZATION:
-            // 1. fps: 15 (faster scanning)
-            // 2. qrbox: slightly larger
-            // 3. aspectRatio: 1.0 (square)
-            // 4. experimentalFeatures: useBarCodeDetectorIfSupported (uses native android API if available -> super fast)
-            const config = {
-                fps: 15,
-                qrbox: { width: 300, height: 300 },
-                aspectRatio: 1.0,
-                experimentalFeatures: {
-                    useBarCodeDetectorIfSupported: true
+        // Camera Config with Zoom hint
+        // Note: Html5QrcodeScanner 'start' method takes config. 
+        // We can try to pass advanced constraints if the library supports passing MediaTrackConstraints.
+        // Documentation says: start(cameraIdOrConfig, configuration, qrCodeSuccessCallback...)
+        // cameraIdOrConfig can be { facingMode: "environment" } OR { deviceId: ... }
+        // To use zoom, we need 'advanced' constraints.
+
+        const cameraConfig = {
+            facingMode: "environment"
+        };
+
+        // HTML5-QRCode doesn't explicitly document passing 'advanced' constraints in the simple config object easily,
+        // but let's try standard getUserMedia constraint format.
+        // If that fails, we rely on the library's default.
+        // NOTE: The library creates its own stream. 
+        // We can try to force high res which often equals "less wide angle" on some phones, effectively zooming.
+
+        html5QrcodeScanner.start(
+            cameraConfig,
+            config,
+            (decodedText, decodedResult) => {
+                // SUCCESS
+                console.log("Scan success:", decodedText);
+
+                // Handle URL or Code
+                let code = decodedText;
+
+                // If URL, extract 'join' param
+                try {
+                    const url = new URL(decodedText);
+                    const joinParam = url.searchParams.get('join');
+                    if (joinParam) code = joinParam;
+                } catch (e) {
+                    // Not a URL, use raw text
                 }
-            };
 
-            // Camera Config with Zoom hint
-            // Note: Html5QrcodeScanner 'start' method takes config. 
-            // We can try to pass advanced constraints if the library supports passing MediaTrackConstraints.
-            // Documentation says: start(cameraIdOrConfig, configuration, qrCodeSuccessCallback...)
-            // cameraIdOrConfig can be { facingMode: "environment" } OR { deviceId: ... }
-            // To use zoom, we need 'advanced' constraints.
+                if (code && code.length >= 4) { // Basic validation
+                    // Stop scanner
+                    html5QrcodeScanner.stop().then(() => {
+                        qrModal.classList.remove('active');
 
-            const cameraConfig = {
-                facingMode: "environment"
-            };
+                        // FILL & FORCE REDIRECT/RELOAD
+                        // This guarantees we enter the "Clean Join State" same as native camera
+                        window.location.href = window.location.pathname + '?join=' + code;
 
-            // HTML5-QRCode doesn't explicitly document passing 'advanced' constraints in the simple config object easily,
-            // but let's try standard getUserMedia constraint format.
-            // If that fails, we rely on the library's default.
-            // NOTE: The library creates its own stream. 
-            // We can try to force high res which often equals "less wide angle" on some phones, effectively zooming.
+                    }).catch(err => console.error(err));
+                }
 
-            html5QrcodeScanner.start(
-                cameraConfig,
-                config,
-                (decodedText, decodedResult) => {
-                    // SUCCESS
-                    console.log("Scan success:", decodedText);
-
-                    // Handle URL or Code
-                    let code = decodedText;
-
-                    // If URL, extract 'join' param
-                    try {
-                        const url = new URL(decodedText);
-                        const joinParam = url.searchParams.get('join');
-                        if (joinParam) code = joinParam;
-                    } catch (e) {
-                        // Not a URL, use raw text
-                    }
-
-                    if (code && code.length >= 4) { // Basic validation
-                        // Stop scanner
-                        html5QrcodeScanner.stop().then(() => {
-                            qrModal.classList.remove('active');
-
-                            // FILL & FORCE REDIRECT/RELOAD
-                            // This guarantees we enter the "Clean Join State" same as native camera
-                            window.location.href = window.location.pathname + '?join=' + code;
-
-                        }).catch(err => console.error(err));
-                    }
-
-                }, (errorMessage) => {
-                    // parse error, ignore
-                }).then(() => {
-                    // Init Zoom
-                    setupZoomControls(html5QrcodeScanner);
-                }).catch(err => {
-                    console.error("Error starting scanner", err);
-                    // This catch might still be hit if something else is wrong
-                    alert("Fehler beim Starten des Scanners: " + err);
-                    qrModal.classList.remove('active');
-                });
-        });
-    }
-
-    // Close QR Modal
-    if (closeQrBtn) {
-        closeQrBtn.addEventListener('click', () => {
-            stopScanner();
-        });
-    }
-
-    function stopScanner() {
-        if (html5QrcodeScanner) {
-            html5QrcodeScanner.stop().then(() => {
-                qrModal.classList.remove('active');
+            }, (errorMessage) => {
+                // parse error, ignore
+            }).then(() => {
+                // Init Zoom
+                setupZoomControls(html5QrcodeScanner);
             }).catch(err => {
-                console.error("Stop failed", err);
+                console.error("Error starting scanner", err);
+                // This catch might still be hit if something else is wrong
+                alert("Fehler beim Starten des Scanners: " + err);
                 qrModal.classList.remove('active');
             });
-        } else {
+    });
+}
+
+// Close QR Modal
+if (closeQrBtn) {
+    closeQrBtn.addEventListener('click', () => {
+        stopScanner();
+    });
+}
+
+function stopScanner() {
+    if (html5QrcodeScanner) {
+        html5QrcodeScanner.stop().then(() => {
             qrModal.classList.remove('active');
-        }
+        }).catch(err => {
+            console.error("Stop failed", err);
+            qrModal.classList.remove('active');
+        });
+    } else {
+        qrModal.classList.remove('active');
     }
+}
 }
 
 // Helper to handle hardware zoom
