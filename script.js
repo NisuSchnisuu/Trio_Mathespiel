@@ -259,10 +259,12 @@ function enableQuickJoinMode() {
     const createContainer = document.getElementById('create-container');
     const joinDivider = document.querySelector('.join-section p'); // "ODER"
     const joinInput = document.getElementById('join-code');
+    const scanBtn = document.getElementById('btn-scan-qr'); // Get the button
 
     if (createContainer) createContainer.style.display = 'none';
     if (joinDivider) joinDivider.style.display = 'none';
     if (joinInput) joinInput.style.display = 'none';
+    if (scanBtn) scanBtn.style.display = 'none'; // Hide it
 
     // Add specific layout class
     const lobbyContainer = document.querySelector('.lobby-container');
@@ -882,10 +884,23 @@ function setupQRScanner() {
 
             // Init Scanner Library
             if (!html5QrcodeScanner) {
-                html5QrcodeScanner = new Html5Qrcode("reader");
+                // Verbose false
+                html5QrcodeScanner = new Html5Qrcode("reader", false);
             }
 
-            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            // OPTIMIZATION:
+            // 1. fps: 15 (faster scanning)
+            // 2. qrbox: slightly larger
+            // 3. aspectRatio: 1.0 (square)
+            // 4. experimentalFeatures: useBarCodeDetectorIfSupported (uses native android API if available -> super fast)
+            const config = {
+                fps: 15,
+                qrbox: { width: 300, height: 300 },
+                aspectRatio: 1.0,
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true
+                }
+            };
 
             // Camera Config with Zoom hint
             // Note: Html5QrcodeScanner 'start' method takes config. 
@@ -1018,6 +1033,8 @@ async function setupZoomControls(html5QrcodeScanner) {
 
             const applyZoom = async (val) => {
                 try {
+                    // Clamp
+                    val = Math.max(min, Math.min(val, max));
                     await track.applyConstraints({ advanced: [{ zoom: val }] });
                     currentZoom = val;
                     zoomDisplay.innerText = val.toFixed(1) + "x";
@@ -1026,15 +1043,37 @@ async function setupZoomControls(html5QrcodeScanner) {
                 }
             };
 
-            zoomInBtn.onclick = () => {
-                const next = Math.min(currentZoom + step, max);
-                applyZoom(next);
+            // Hold Logic
+            let zoomInterval = null;
+
+            const startZoom = (direction) => {
+                if (zoomInterval) clearInterval(zoomInterval);
+                // Instant first step
+                direction === 'in' ? applyZoom(currentZoom + step) : applyZoom(currentZoom - step);
+
+                // Continuous
+                zoomInterval = setInterval(() => {
+                    direction === 'in' ? applyZoom(currentZoom + step) : applyZoom(currentZoom - step);
+                }, 100); // 100ms repeat
             };
 
-            zoomOutBtn.onclick = () => {
-                const next = Math.max(currentZoom - step, min);
-                applyZoom(next);
+            const stopZoom = () => {
+                if (zoomInterval) clearInterval(zoomInterval);
+                zoomInterval = null;
             };
+
+            // Touch & Mouse Events
+            const addHoldListeners = (btn, dir) => {
+                btn.onmousedown = () => startZoom(dir);
+                btn.ontouchstart = (e) => { e.preventDefault(); startZoom(dir); }; // Prevent defaults
+
+                btn.onmouseup = stopZoom;
+                btn.onmouseleave = stopZoom;
+                btn.ontouchend = stopZoom;
+            };
+
+            addHoldListeners(zoomInBtn, 'in');
+            addHoldListeners(zoomOutBtn, 'out');
 
         } catch (e) {
             console.error("Error setting up zoom", e);
