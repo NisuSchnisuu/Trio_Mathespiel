@@ -1429,6 +1429,11 @@ function handleModalSync(remoteState) {
             }
         }
 
+        // 4. History Sync
+        if (remoteState.history) {
+            modalState.history = remoteState.history || [];
+        }
+
     } else {
         closeCalculationModal(false); // Local close without push
     }
@@ -1470,19 +1475,19 @@ function populateModalButtons(preserveFormula = false) {
         modalState.history = []; // Clear history
     } else {
         // Attempt to reconstruct history from formula string for validation context
-        // This is a naive reconstruction: If last char is digit, assume last was 'num'.
-        // If last char is op, assume last was 'op'.
-        // This is enough for "No Double Operator" and "No Double Number" checks.
+        // Only if history is NOT already present (e.g. from sync)
         if (!modalState.history) modalState.history = [];
-        if (modalState.formula.length > 0) {
+
+        if (modalState.history.length === 0 && modalState.formula.length > 0) {
             const lastChar = modalState.formula.slice(-1);
             const isDigit = /[0-9]/.test(lastChar);
             // Push a dummy history item to set context
-            // We don't need full idx since we can't easily map back, but 'type' is what matters.
             modalState.history.push({
                 type: isDigit ? 'num' : 'op',
                 idx: -1,
-                dummy: true
+                dummy: true,
+                // Best-effort prevFormula for dummy items to prevent crash
+                prevFormula: modalState.formula.slice(0, -1)
             });
         }
     }
@@ -1550,6 +1555,8 @@ function populateModalButtons(preserveFormula = false) {
         }
     });
     document.getElementById('btn-clear').onclick = handleClear;
+    const btnBack = document.getElementById('btn-backspace');
+    if (btnBack) btnBack.onclick = handleBackspace;
 }
 
 function closeCalculationModal(push = true) {
@@ -1570,7 +1577,8 @@ function updateRemoteFormula() {
     if (appState.buzzerOwner === appState.playerId) {
         db.ref(`games/${appState.gameId}/status/modal`).update({
             formula: modalState.formula,
-            usedIndices: modalState.usedIndices
+            usedIndices: modalState.usedIndices,
+            history: modalState.history
         });
     }
 }
@@ -1707,7 +1715,48 @@ function flashInvalidElement(el) {
     }, 400);
 }
 
+function handleBackspace() {
+    if (!modalState.history || modalState.history.length === 0) return;
 
+    const lastAction = modalState.history.pop();
+
+    if (lastAction.prevFormula !== undefined) {
+        modalState.formula = lastAction.prevFormula;
+    } else {
+        // Fallback for dummy history items without prevFormula
+        // Just remove the last character to avoid crash
+        modalState.formula = modalState.formula.slice(0, -1);
+    }
+
+    if (lastAction.type === 'num') {
+        // Remove from usedIndices (it's the last added index? YES, if we push consecutively)
+        // But better to use filter or indexOf to be safe?
+        // lastAction.idx is robust.
+        modalState.usedIndices = modalState.usedIndices.filter(i => i !== lastAction.idx);
+
+        // UI Update: Remove .used
+        const btn = document.querySelector(`.num-btn[data-index="${lastAction.idx}"]`);
+        if (btn) btn.classList.remove('used');
+    }
+
+    updateRemoteFormula();
+    updateFormulaDisplay();
+
+    // Also update operators used state?
+    // handleOpClick logic re-checks operators in `updateLobby`? No, `renderCalculationModal`.
+    // We should trigger operator update manually or just let it update on next render?
+    // Wait, `handleOpClick` adds/removes `.used` for operators based on formula.
+    // We need to trigger that update.
+    // Simplest: Call `updateOperatorButtonsState()` if we extract it, or copy logic.
+    // Let's iterate operators and update classes.
+    document.querySelectorAll('.btn-calc.op').forEach(b => {
+        if (['+', '-', '*', '/'].includes(b.dataset.op) && modalState.formula.includes(b.dataset.op)) {
+            b.classList.add('used');
+        } else {
+            b.classList.remove('used');
+        }
+    });
+}
 
 function handleClear() {
     if (appState.buzzerOwner !== appState.playerId) return;
@@ -1760,73 +1809,53 @@ function updateFormulaDisplay() {
 
 
 function submitSolution() {
-    if (!modalState.formula) return;
+    const solveBtn = document.getElementById('btn-solve');
+    if (!modalState.formula) {
+        flashInvalidElement(solveBtn);
+        return;
+    }
 
-    // Profi Mode Validation: STRICT Parentheses Check
-    if (appState.difficulty === 'pro') {
-        const formula = modalState.formula;
-        const hasOpen = formula.includes('(');
-        const hasClose = formula.includes(')');
+    // Client-Side Structure Validation
+    let check = { valid: true };
 
-        if (!hasOpen || !hasClose) {
-            // Flash Solve Button
-            const solveBtn = document.getElementById('btn-solve');
-            flashInvalidElement(solveBtn);
+    // Ensure helper functions are available (hoisted)
+    if (typeof checkNormal === 'function') {
+        if (appState.difficulty === 'crazy') {
+            const p = checkProfi(modalState.formula);
+            const a = checkAdvanced(modalState.formula);
+            const n = checkNormal(modalState.formula);
+            if (!p.valid && !a.valid && !n.valid) {
+                check = { valid: false, reason: "Ungültiges Format (Entspricht keinem Muster)." };
+            }
+        } else if (appState.difficulty === 'pro') {
+            check = checkProfi(modalState.formula);
+        } else if (appState.difficulty === 'advanced') {
+            check = checkAdvanced(modalState.formula);
+        } else {
+            // Normal (default)
+            check = checkNormal(modalState.formula);
+        }
+    }
 
-            // Flash Parentheses Buttons
+    if (!check.valid) {
+        flashInvalidElement(solveBtn);
+        showMessage("Ungültig", check.reason || "Formel entspricht nicht den Regeln.");
+
+        // Specific Profi Feedback (Parentheses)
+        if (appState.difficulty === 'pro' && check.reason.includes('Klammern')) {
             const openBtn = document.querySelector('.btn-calc.op[data-op="("]');
             const closeBtn = document.querySelector('.btn-calc.op[data-op=")"]');
             if (openBtn) flashInvalidElement(openBtn);
             if (closeBtn) flashInvalidElement(closeBtn);
-
-            return;
         }
-
-        // Rule: Line operation (+/-) must be INSIDE parentheses.
-        // Inverse: Point operation (* or /) inside parentheses is invalid.
-        // We need to extract the content inside outermost parens (assuming simple nesting for now, logic supports single level anyway)
-        // Find indices of parens. 
-        // Note: Currently generated logic is simple structure, so first ( and last ) or first ( and matching ).
-        // A regexp like /\(([^)]+)\)/ can extract inner content.
-
-        const match = formula.match(/\(([^)]+)\)/);
-        if (match) {
-            const innerContent = match[1];
-            // Check if inner content contains * or /
-            if (innerContent.includes('*') || innerContent.includes('/')) {
-                // FAIL
-                const solveBtn = document.getElementById('btn-solve');
-                flashInvalidElement(solveBtn);
-
-                const openBtn = document.querySelector('.btn-calc.op[data-op="("]');
-                const closeBtn = document.querySelector('.btn-calc.op[data-op=")"]');
-                if (openBtn) flashInvalidElement(openBtn);
-                if (closeBtn) flashInvalidElement(closeBtn);
-
-                // Flash the Point Operator in Display
-                const spans = document.getElementById('formula-display').querySelectorAll('.char-op');
-                spans.forEach(span => {
-                    // Check if this span is inside parens? 
-                    // Simple check: Check if its char is * or / AND it's "inside".
-                    // Since we know the rule failed, any * or / inside IS the problem.
-                    // We can check span.dataset.index vs paren indices.
-                    // Let's rely on dataset.char for now, but to be precise we need indices.
-                    const idx = parseInt(span.dataset.index);
-                    const openIdx = formula.indexOf('(');
-                    const closeIdx = formula.indexOf(')'); // First matching close for simple logic
-
-                    if (idx > openIdx && idx < closeIdx) {
-                        if (['*', '/'].includes(span.dataset.char)) {
-                            flashInvalidElement(span);
-                        }
-                    }
-                });
-                return;
-            }
-        }
+        return;
     }
 
-    try { calculateFormula(modalState.formula); } catch (e) { showMessage('Fehler', "Ungültige Formel"); return; }
+    try { calculateFormula(modalState.formula); } catch (e) {
+        flashInvalidElement(solveBtn);
+        showMessage('Fehler', "Ungültige Formel");
+        return;
+    }
 
     const attempt = {
         playerId: appState.playerId,
@@ -1862,160 +1891,117 @@ function attachHostLogic(gameId) {
 // Modified: We call this if appState.isHost inside subscribe or create
 // Let's call it in subscribe loop if isHost and not attached
 
-function calculateScore(attempt) {
-    // Basic score is 1 point per solution
-    return 1;
+// Validation Helpers
+function checkNormal(f) {
+    const countMult = (f.match(/\*/g) || []).length;
+    const countPlus = (f.match(/\+/g) || []).length;
+    const countMinus = (f.match(/-/g) || []).length;
+
+    if (countMult !== 1) return { valid: false, reason: "Es muss genau eine Mal-Rechnung enthalten sein!" };
+    if (countPlus + countMinus !== 1) return { valid: false, reason: "Es muss genau eine Plus- oder Minus-Rechnung enthalten sein!" };
+    if (f.trim().startsWith('-')) return { valid: false, reason: "Keine negativen Startzahlen erlaubt." };
+
+    // Position checks removed per user request: a-b*c allowed.
+    return { valid: true };
+}
+
+function checkAdvanced(f) {
+    const countDiv = (f.match(/\//g) || []).length;
+    const countPlus = (f.match(/\+/g) || []).length;
+    const countMinus = (f.match(/-/g) || []).length;
+
+    if (countDiv !== 1) return { valid: false, reason: "Es muss genau eine Geteilt-Rechnung enthalten sein!" };
+    if (countPlus + countMinus !== 1) return { valid: false, reason: "Es muss genau eine Plus- oder Minus-Rechnung enthalten sein!" };
+    if (f.trim().startsWith('-')) return { valid: false, reason: "Keine negativen Startzahlen erlaubt." };
+
+    // Position checks removed per user request.
+    return { valid: true };
+}
+
+function checkProfi(f) {
+    if (!f.includes('(') || !f.includes(')')) return { valid: false, reason: "Es müssen Klammern verwendet werden!" };
+
+    const hasMultDiv = f.includes('*') || f.includes('/');
+    const hasPlusMinus = f.includes('+') || f.includes('-');
+    if (!hasMultDiv || !hasPlusMinus) return { valid: false, reason: "Es müssen Strich- UND Punktrechnung (mit Klammern) enthalten sein!" };
+
+    const match = f.match(/\(([^)]+)\)/);
+    if (match) {
+        const innerContent = match[1];
+        if (innerContent.includes('*') || innerContent.includes('/')) {
+            return { valid: false, reason: "Ungültige Struktur! Punktrechnung darf nicht in der Klammer stehen." };
+        }
+    }
+    return { valid: true };
 }
 
 function validateAttempt(attempt, attemptKey) {
     const gameRef = db.ref(`games/${appState.gameId}`);
     let valid = false;
-    let structureValid = true;
     let failReason = null;
     let result = null;
+    let score = 1;
 
     try {
         result = calculateFormula(attempt.formula);
 
-        // Special Validation for Normal Mode
-        console.log("Validating Attempt. Difficulty:", appState.difficulty);
-        if (appState.difficulty === 'normal') {
-            // Check for valid structure: Exact one * and one +/-
-            const f = attempt.formula;
-            const countMult = (f.match(/\*/g) || []).length;
-            const countPlus = (f.match(/\+/g) || []).length;
-            const countMinus = (f.match(/-/g) || []).length;
+        // Math Check First
+        if (Math.abs(result - attempt.target) > 0.001) {
+            failReason = `Ergebnis ${result} stimmt nicht mit Ziel ${attempt.target} überein.`;
+        } else {
+            // Structure Check
+            console.log("Validating Difficulty:", appState.difficulty);
 
-            if (countMult !== 1) {
-                structureValid = false;
-                failReason = "Es muss genau eine Mal-Rechnung enthalten sein!";
-            }
-            if (countPlus + countMinus !== 1) {
-                structureValid = false;
-                if (!failReason) failReason = "Es muss genau eine Plus- oder Minus-Rechnung enthalten sein!";
-            }
-
-            // Structure Check: A*B+C, A*B-C, C+A*B
-            // The prompt says "Structure is given: (A*B) +/- C". 
-            // In linear input without parens (since parens hidden):
-            // We allow: A*B+C, A*B-C, C+A*B.
-            // We disallow: -C+A*B (leading sign), A+B+C (already filtered by op counts), etc.
-
-            // Regex to match "Start with Mult" OR "End with Mult"
-            // Simple Pattern: term * term +/- term   OR   term +/- term * term
-            // Terms are numbers.
-            // Since we know we have exactly one * and one +/-:
-            // Valid forms:
-            // N * N + N
-            // N * N - N
-            // N + N * N
-            // N - N * N (allowed? "C - A * B" -> 10 - 2*3 = 4.  (A*B)+/-C allows subtraction FROM C? "Zwei davon multiplizieren und die dritte addieren oder subtrahieren" -> (A*B) - C or (A*B) + C. 
-            // The prompt says: "(Zahl A · Zahl B) ± Zahl C". This usually implies the term (A*B) is the primary unit.
-            // (A*B) - C is clear. 4*5 - 2 = 18.
-            // (A*B) + C is clear. 4*5 + 2 = 22.
-            // What about C - (A*B)? "20 - 4*2".  (A*B) is being subtracted.
-            // Prompt says: "Zwischenergebnis und dritte Zahl verrechnen".
-            // "Zwei davon multiplizieren und die dritte addieren oder subtrahieren."
-            // This phrasing "multiply two, and ADD OR SUBTRACT the third". 
-            // Grammatically: Result = (A*B) +/- C. 
-            // Does not explicitly allow C - (A*B). 
-            // Let's STICK to the requested formula: (A*B) +/- C.
-            // So allowed: A*B+C, C+A*B, A*B-C.
-
-            // Checking logic:
-            // 1. Is there a leading minus? (Disallow)
-            if (f.trim().startsWith('-')) structureValid = false;
-
-            // 2. Locate the minus.
-            // If minus exists:
-            // Valid: "N*N - N".  Invalid: "N - N*N".
-            // "4*5-2". Minus index > Multiply index? Yes.
-            // "2-4*5". Minus index < Multiply index.
-            if (countMinus === 1) {
-                const idxMinus = f.indexOf('-');
-                const idxMult = f.indexOf('*');
-                if (idxMinus < idxMult) {
-                    // This is C - A*B (minus comes before mult). Reject.
-                    // Exception: A * B - C -> mult before minus. OK.
-                    structureValid = false;
-                    failReason = "Ungültige Struktur! Multiplikation muss vor Subtraktion erfolgen (oder A*B - C).";
+            if (appState.difficulty === 'crazy') {
+                const p = checkProfi(attempt.formula);
+                if (p.valid) { score = 3; valid = true; }
+                else {
+                    const a = checkAdvanced(attempt.formula);
+                    if (a.valid) { score = 2; valid = true; }
+                    else {
+                        const n = checkNormal(attempt.formula);
+                        if (n.valid) { score = 1; valid = true; }
+                        else {
+                            failReason = "Ungültiges Format für 'Verrückt'! (Muss Normal, Fortgeschritten oder Profi Muster sein).";
+                        }
+                    }
                 }
-            }
-        } else if (appState.difficulty === 'advanced') {
-            // Check for valid structure: Exact one / and one +/-
-            const f = attempt.formula;
-            const countDiv = (f.match(/\//g) || []).length;
-            const countPlus = (f.match(/\+/g) || []).length;
-            const countMinus = (f.match(/-/g) || []).length;
-
-            if (countDiv !== 1) {
-                structureValid = false;
-                failReason = "Es muss genau eine Geteilt-Rechnung enthalten sein!";
-            }
-            if (countPlus + countMinus !== 1) {
-                structureValid = false;
-                if (!failReason) failReason = "Es muss genau eine Plus- oder Minus-Rechnung enthalten sein!";
-            }
-
-            // Structure Check: A/B+C, A/B-C, C+A/B
-            if (f.trim().startsWith('-')) structureValid = false;
-
-            if (countMinus === 1) {
-                const idxMinus = f.indexOf('-');
-                const idxDiv = f.indexOf('/');
-                if (idxMinus < idxDiv) {
-                    structureValid = false;
-                    failReason = "Ungültige Struktur! Division muss vor Subtraktion erfolgen (oder (A/B) - C).";
-                }
-            }
-        } else if (appState.difficulty === 'pro') {
-            // Profi: Must have ( AND ) AND (* OR /) AND (+ OR -)
-            const f = attempt.formula;
-            if (!f.includes('(') || !f.includes(')')) {
-                structureValid = false;
-                failReason = "Es müssen Klammern verwendet werden!";
+            } else if (appState.difficulty === 'pro') {
+                const c = checkProfi(attempt.formula);
+                if (c.valid) valid = true;
+                else failReason = c.reason;
+            } else if (appState.difficulty === 'advanced') {
+                const c = checkAdvanced(attempt.formula);
+                if (c.valid) valid = true;
+                else failReason = c.reason;
             } else {
-                const hasMultDiv = f.includes('*') || f.includes('/');
-                const hasPlusMinus = f.includes('+') || f.includes('-');
-                if (!hasMultDiv || !hasPlusMinus) {
-                    structureValid = false;
-                    failReason = "Es müssen Strich- UND Punktrechnung (mit Klammern) enthalten sein!";
-                }
+                // Normal (default)
+                const c = checkNormal(attempt.formula);
+                if (c.valid) valid = true;
+                else failReason = c.reason;
             }
         }
-
-        if (Math.abs(result - attempt.target) < 0.001 && structureValid) valid = true;
-    } catch (e) { }
-
-    if (!structureValid && !failReason) {
-        if (appState.difficulty === 'normal') {
-            if ((attempt.formula.match(/\*/g) || []).length !== 1) failReason = "Es muss genau eine Mal-Rechnung enthalten sein!";
-            else failReason = "Es muss genau eine Plus- oder Minus-Rechnung enthalten sein!";
-        } else if (appState.difficulty === 'advanced') {
-            if ((attempt.formula.match(/\//g) || []).length !== 1) failReason = "Es muss genau eine Geteilt-Rechnung enthalten sein!";
-            else failReason = "Es muss genau eine Plus- oder Minus-Rechnung enthalten sein!";
-        } else if (appState.difficulty === 'pro') {
-            failReason = "Ungültige Struktur für Profi-Modus.";
-        }
+    } catch (e) {
+        failReason = "Ungültige Formel (Syntaxfehler).";
     }
 
     const resultData = {
         correct: valid,
-        score: valid ? calculateScore(attempt) : 0,
+        score: valid ? score : 0,
         playerId: attempt.playerId,
         playerName: attempt.playerName || 'Unbekannt',
         target: attempt.target,
         formula: attempt.formula,
-        result: result,
-        timestamp: firebase.database.ServerValue.TIMESTAMP,
-        reason: valid ? null : (failReason || "Das Ergebnis ist leider falsch.")
+        reason: valid ? null : (failReason || "Das Ergebnis ist leider falsch."),
+        timestamp: firebase.database.ServerValue.TIMESTAMP
     };
 
-    // ... rest of function ...
+    gameRef.child('status/result').set(resultData);
+    db.ref(`games/${appState.gameId}/attempts/${attemptKey}`).remove();
 
     if (valid) {
-        gameRef.child(`players/${attempt.playerId}/score`).transaction(score => {
-            return (score || 0) + 1;
+        gameRef.child(`players/${attempt.playerId}/score`).transaction(current => {
+            return (current || 0) + score;
         }, (error, committed, snapshot) => {
             if (committed) {
                 const newScore = snapshot.val();
@@ -2029,38 +2015,12 @@ function validateAttempt(attempt, attemptKey) {
         });
 
         gameRef.child('status').set(null);
-        // New Target
-        startGameAction();
         generateNewTarget();
     } else {
-        const lockTime = Date.now() + 20000; // 20s Penalty
+        const lockTime = Date.now() + 20000;
         gameRef.child(`players/${attempt.playerId}/lockedUntil`).set(lockTime);
         gameRef.child('status').set(null);
     }
-
-    // Result Feedback
-    // Result Feedback
-    // resultData is already defined above with 'reason'.
-    // We just need to ensure properties match or update the reference.
-    // The previous definition:
-    /*
-    const resultData = {
-        correct: valid,
-        score: valid ? calculateScore(attempt) : 0,
-        playerId: attempt.playerId,
-        playerName: attempt.playerName,
-        target: attempt.target,
-        formula: attempt.formula,
-        reason: valid ? null : (failReason || "Das Ergebnis ist leider falsch.")
-    };
-    */
-    // The duplicate below (lines 1495-1501) adds "result: result" and "timestamp".
-    // We should merge them or just use the first one and add missing props.
-    // Let's modify the first one to include result/timestamp and remove this block.
-
-    gameRef.child('status/result').set(resultData);
-
-    db.ref(`games/${appState.gameId}/attempts/${attemptKey}`).remove();
 }
 
 function startPenaltyCountdown() {

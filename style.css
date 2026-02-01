@@ -1224,22 +1224,19 @@ select option {
 }
 
 .btn-calc.used {
-    background: #0f172a;
-    /* Darker fadeout */
-    color: #334155;
+    background: rgba(15, 23, 42, 0.5);
+    color: #475569;
     cursor: not-allowed;
     pointer-events: none;
-    opacity: 0.6;
-    transform: none;
     box-shadow: none;
-    border: 1px solid #1e293b;
+    border: 1px dashed #334155;
+    transform: scale(0.9);
+    filter: grayscale(1);
+    opacity: 0.8;
+    /* Make it more visible than before */
 }
 
-.btn-calc.op {
-    background: #475569;
-    /* Revert to gray */
-    font-weight: 700;
-}
+/* ... existing code ... */
 
 .btn-calc.action {
     background: #ef4444;
@@ -1259,9 +1256,12 @@ select option {
 }
 
 .btn-calc.num-btn.used {
-    background: #334155;
-    opacity: 0.5;
+    background: #1e293b;
+    color: #475569;
+    border: 2px solid #334155;
+    opacity: 1;
     pointer-events: none;
+    transform: scale(0.9);
 }
 
 @keyframes fadeIn {
