@@ -285,6 +285,17 @@
                     <input type="number" id="custom-score" placeholder="Punkte"
                         style="width:100%; border-radius: 8px; display: none;">
                 </div>
+
+                <!-- Hardcore Mode -->
+                <div class="setting-card">
+                    <label for="hardcore-mode" style="color: var(--danger);">Hardcore Modus 🔥</label>
+                    <p class="setting-desc">Minuspunkt bei falscher Antwort!</p>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
+                        <input type="checkbox" id="hardcore-mode"
+                            style="width: 20px; height: 20px; accent-color: var(--danger);">
+                        <span style="font-size: 0.9rem; color: white;">Aktivieren</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Teacher Mode: Observe Setting (Hidden by default) -->
@@ -423,6 +434,13 @@
         <!-- Right: Dashboard -->
         <div class="game-dashboard">
             <div style="align-self: flex-end; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <!-- Teacher Controls (Host Only) -->
+                <div id="teacher-controls"
+                    style="display: none; align-items: center; gap: 8px; background: rgba(139, 92, 246, 0.2); padding: 5px 10px; border-radius: 20px; border: 1px solid rgba(139, 92, 246, 0.5);">
+                    <input type="checkbox" id="cb-teacher-broadcast" style="width: 16px; height: 16px;">
+                    <span style="font-size: 0.8rem; color: #e2e8f0;">Lösung zeigen</span>
+                </div>
+
                 <span id="difficulty-display"
                     style="background: rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 6px; font-size: 0.8rem; color: #94a3b8;">Normal</span>
                 <button id="btn-game-back" class="btn-primary"

@@ -276,12 +276,28 @@ function enableQuickJoinMode() {
     // Add specific layout class
     const lobbyContainer = document.querySelector('.lobby-container');
     if (lobbyContainer) lobbyContainer.classList.add('quick-join-mode');
+
+    // Hide Create Buttons explicitly
+    const btnCreate = document.getElementById('btn-open-create-modal');
+    const btnClass = document.getElementById('btn-class-game');
+    if (btnCreate) btnCreate.style.display = 'none';
+    if (btnClass) btnClass.style.display = 'none';
 }
 
 // --- Event Listeners ---
 function setupEventListeners() {
     setupLobbyNewEvents(); // Bind new lobby buttons
     setupTeacherShortcut(); // Init shortcut
+
+    // Teacher Broadcast Toggle Listener
+    const cbBroadcast = document.getElementById('cb-teacher-broadcast');
+    if (cbBroadcast) {
+        cbBroadcast.addEventListener('change', (e) => {
+            if (appState.gameId && appState.isHost) {
+                db.ref(`games/${appState.gameId}/settings/teacherBroadcast`).set(e.target.checked);
+            }
+        });
+    }
 
     // 1. OPEN CREATE MODAL
     if (buttons.createGameTrigger) {
@@ -480,7 +496,9 @@ function createGame(playerName, isTeacherGame = false) {
 
         // Use teacher mode from arg or existing appState? 
         // Logic: specific button passes isTeacherGame=true.
-        appState.isTeacherMode = isTeacherGame; // Set local state active so host sees it right
+        appState.isTeacherMode = isTeacherGame;
+        appState.isHost = true; // Ensure Host flag is set local
+
 
         // Host Player ID (still needs to be unique inside the game)
         // We can use a simple random string for player ID too since it's local scope
@@ -723,6 +741,33 @@ function subscribeToGame(gameId) {
 
             // Sync Teacher Settings
             appState.settings = data.settings; // Keep reference
+
+            // Sync Host ID for broadcast logic
+            if (data.hostId) appState.hostId = data.hostId;
+
+            // Teacher Broadcast Listener Sync
+            const teacherToggle = document.getElementById('cb-teacher-broadcast');
+            if (teacherToggle) {
+                // Update visual state if strictly listening? 
+                // If I am host, I control it. If I am student, I don't see it.
+                // So sync to UI is mostly for maintaining state on reload for Host.
+                if (data.settings.teacherBroadcast !== undefined) {
+                    teacherToggle.checked = data.settings.teacherBroadcast;
+                }
+            }
+
+            // Show/Hide Teacher Controls based on role
+            const teacherControls = document.getElementById('teacher-controls');
+            if (teacherControls) {
+                // Show if I am Host AND (Teacher Mode OR Just Host?)
+                // User said: "im Klassenmodus... man als host"
+                // Let's restrict to Teacher Mode for now OR just Host.
+                if (appState.isHost && (appState.settings.teacherMode || appState.isTeacherMode)) {
+                    teacherControls.style.display = 'flex';
+                } else {
+                    teacherControls.style.display = 'none';
+                }
+            }
 
             // Note: appState.teacherMode is local UI toggle. 
             // We should use appState.settings.teacherMode for game logic.
@@ -1127,8 +1172,12 @@ function handleResultSync(res) {
         }
     } else {
         title = "FALSCH! ❌";
-        if (isMe) msg = res.reason || "Das war leider falsch! Du bist für 20s gesperrt.";
-        else msg = `${res.playerName} hat falsch gerechnet (${res.formula}).`; // Inform others
+        if (isMe) {
+            msg = res.reason || "Das war leider falsch! Du bist für 20s gesperrt.";
+        } else {
+            // Generic message for others, no specific formula
+            msg = `${res.playerName}: Das war nicht ganz korrekt.`;
+        }
         playSound('fail');
 
         // ...
@@ -1444,8 +1493,28 @@ function handleModalSync(remoteState) {
         const isOwner = (headerOwner === appState.playerId);
         const observeMode = (appState.settings && appState.settings.observeMode !== undefined) ? appState.settings.observeMode : true;
 
-        if (!isOwner && !observeMode) {
-            // Do not open modal for observers
+        // Teacher Broadcast Logic
+        // If the buzzer owner is the HOST, and teacherBroadcast is enabled -> Allow
+        // We need to know who is host. appState.isHost is local.
+        // We can check if 'headerOwner' is the hostId from settings? No, settings doesn't have hostId.
+        // But we have 'gameData.hostId'.
+        // Or simpler: If "I" am a student, I see 'headerOwner'. Is 'headerOwner' the Host?
+        // We probably need to store hostId in appState synced from Firebase.
+        // createGame stores it in root 'hostId'. subscribeToGame gets root data?
+        // Let's assume appState.hostId is available or we add it to subscribeToGame.
+
+        // ADD hostId sync in subscribeToGame first (via separate chunk or implicit knowledge).
+        // Assuming appState.hostId exists.
+        const isHostOwner = (appState.hostId && headerOwner === appState.hostId);
+        const teacherBroadcast = (appState.settings && appState.settings.teacherBroadcast);
+
+        // Allow Host (me) to always see.
+        // Allow Student to see if observeMode OR (isHostOwner AND teacherBroadcast)
+
+        const canObserve = isOwner || appState.isHost || observeMode || (isHostOwner && teacherBroadcast);
+
+        if (!canObserve) {
+            // Do not open modal for observers / students if observation disabled
             modal.classList.remove('active'); // Force close/hide
             return;
         }
@@ -2079,7 +2148,17 @@ function validateAttempt(attempt, attemptKey) {
         gameRef.child('status').set(null);
         generateNewTarget();
     } else {
-        const lockTime = Date.now() + 20000;
+        // Hardcore Mode: Point Deduction
+        if (appState.settings && appState.settings.hardcoreMode) {
+            gameRef.child(`players/${attempt.playerId}/score`).transaction(current => {
+                // Allow negative? "Minuspunkt". current - 1.
+                // Assuming default 0 start. 0 -> -1.
+                return (current || 0) - 1;
+            });
+        }
+
+        // Standard 30s Penalty (Requested Global Change)
+        const lockTime = Date.now() + 30000;
         gameRef.child(`players/${attempt.playerId}/lockedUntil`).set(lockTime);
         gameRef.child('status').set(null);
     }
