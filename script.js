@@ -928,24 +928,18 @@ function setupQRScanner() {
                         html5QrcodeScanner.stop().then(() => {
                             qrModal.classList.remove('active');
 
-                            // Fill input
-                            inputs.joinCode.value = code;
+                            // FILL & FORCE REDIRECT/RELOAD
+                            // This guarantees we enter the "Clean Join State" same as native camera
+                            window.location.href = window.location.pathname + '?join=' + code;
 
-                            // SWITCH TO QUICK JOIN MODE
-                            enableQuickJoinMode();
-
-                            // Auto-Join if name exists
-                            if (inputs.playerName.value.trim()) {
-                                joinGame(code, inputs.playerName.value.trim());
-                            } else {
-                                // Focus name input
-                                inputs.playerName.focus();
-                            }
                         }).catch(err => console.error(err));
                     }
 
                 }, (errorMessage) => {
                     // parse error, ignore
+                }).then(() => {
+                    // Init Zoom
+                    setupZoomControls(html5QrcodeScanner);
                 }).catch(err => {
                     console.error("Error starting scanner", err);
                     // This catch might still be hit if something else is wrong
@@ -958,18 +952,94 @@ function setupQRScanner() {
     // Close QR Modal
     if (closeQrBtn) {
         closeQrBtn.addEventListener('click', () => {
-            if (html5QrcodeScanner) {
-                html5QrcodeScanner.stop().then(() => {
-                    qrModal.classList.remove('active');
-                }).catch(err => {
-                    console.error("Stop failed", err);
-                    qrModal.classList.remove('active');
-                });
-            } else {
-                qrModal.classList.remove('active');
-            }
+            stopScanner();
         });
     }
+
+    function stopScanner() {
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.stop().then(() => {
+                qrModal.classList.remove('active');
+            }).catch(err => {
+                console.error("Stop failed", err);
+                qrModal.classList.remove('active');
+            });
+        } else {
+            qrModal.classList.remove('active');
+        }
+    }
+}
+
+// Helper to handle hardware zoom
+async function setupZoomControls(html5QrcodeScanner) {
+    const zoomInBtn = document.getElementById('btn-zoom-in');
+    const zoomOutBtn = document.getElementById('btn-zoom-out');
+    const zoomDisplay = document.getElementById('zoom-level-display');
+
+    if (!zoomInBtn || !zoomOutBtn) return;
+
+    // Reset UI
+    zoomDisplay.style.display = 'none';
+    zoomInBtn.style.display = 'none';
+    zoomOutBtn.style.display = 'none';
+
+    // Wait a bit for the camera to actually start and track to be available
+    setTimeout(async () => {
+        try {
+            // Get the running track from the library provided mechanism if possible, 
+            // OR find the video element and get its stream. 
+            // HTML5-QRCode puts a <video> element inside the div#reader.
+            const videoEl = document.querySelector('#reader video');
+            if (!videoEl || !videoEl.srcObject) return;
+
+            const track = videoEl.srcObject.getVideoTracks()[0];
+            if (!track) return;
+
+            const capabilities = track.getCapabilities();
+            const settings = track.getSettings();
+
+            // Check for Zoom support
+            if (!capabilities.zoom) {
+                console.log("Zoom not supported by hardware");
+                return;
+            }
+
+            // Show Controls
+            zoomInBtn.style.display = 'flex';
+            zoomOutBtn.style.display = 'flex';
+            zoomDisplay.style.display = 'block';
+
+            let currentZoom = settings.zoom || capabilities.zoom.min || 1;
+            const min = capabilities.zoom.min;
+            const max = capabilities.zoom.max;
+            const step = capabilities.zoom.step || 0.1;
+
+            zoomDisplay.innerText = currentZoom.toFixed(1) + "x";
+
+            const applyZoom = async (val) => {
+                try {
+                    await track.applyConstraints({ advanced: [{ zoom: val }] });
+                    currentZoom = val;
+                    zoomDisplay.innerText = val.toFixed(1) + "x";
+                } catch (e) {
+                    console.error("Zoom failed", e);
+                }
+            };
+
+            zoomInBtn.onclick = () => {
+                const next = Math.min(currentZoom + step, max);
+                applyZoom(next);
+            };
+
+            zoomOutBtn.onclick = () => {
+                const next = Math.max(currentZoom - step, min);
+                applyZoom(next);
+            };
+
+        } catch (e) {
+            console.error("Error setting up zoom", e);
+        }
+    }, 1000); // 1s delay to ensure video is ready
 }
 
 function handleResultSync(res) {

@@ -149,7 +149,20 @@
                 <button id="btn-close-qr"
                     style="background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">&times;</button>
             </div>
-            <div id="reader" style="width: 100%; border-radius: 12px; overflow: hidden; background: #000;"></div>
+            <div style="position: relative;">
+                <div id="reader" style="width: 100%; border-radius: 12px; overflow: hidden; background: #000;"></div>
+                <!-- Zoom Controls -->
+                <div id="zoom-controls"
+                    style="position: absolute; right: 10px; bottom: 10px; display: flex; flex-direction: column; gap: 10px; z-index: 100;">
+                    <button id="btn-zoom-in"
+                        style="width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(255,255,255,0.3); color: white; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center;">+</button>
+                    <button id="btn-zoom-out"
+                        style="width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(255,255,255,0.3); color: white; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center;">-</button>
+                    <div id="zoom-level-display"
+                        style="text-align: center; color: white; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 4px; display: none;">
+                        1.0x</div>
+                </div>
+            </div>
             <p style="margin-top:15px; color:#cbd5e1; font-size:0.9rem;">Richte die Kamera auf den QR-Code des Hosts.
             </p>
         </div>
