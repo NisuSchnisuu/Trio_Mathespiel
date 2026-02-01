@@ -966,27 +966,42 @@ function setupQRScanner() {
             // Explicit Permission Request Logic (Only if not already granted)
             if (!permissionGranted) {
                 try {
-                    // Check if API is available
-                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                        throw new Error("Browser API not available (Non-Secure Context?)");
+                    // 1. Check persistent permission state (if supported)
+                    if (navigator.permissions && navigator.permissions.query) {
+                        try {
+                            const status = await navigator.permissions.query({ name: 'camera' });
+                            if (status.state === 'granted') {
+                                permissionGranted = true;
+                                console.log("Camera permission already granted (persistent).");
+                            }
+                        } catch (e) {
+                            console.log("Permission query failed/unsupported", e);
+                        }
                     }
 
-                    // Request Permission explicitly first
-                    const constraints = {
-                        video: {
-                            facingMode: "environment",
-                            zoom: true, // Request zoom capability
-                            width: { ideal: 1920 }, // Higher res often helps with zoom availability
-                            height: { ideal: 1080 }
+                    // 2. If still not granted, request it explicitly
+                    if (!permissionGranted) {
+                        // Check if API is available
+                        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                            throw new Error("Browser API not available (Non-Secure Context?)");
                         }
-                    };
-                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
-                    // If successful, stop this stream immediately to release camera for the library
-                    stream.getTracks().forEach(track => track.stop());
+                        const constraints = {
+                            video: {
+                                facingMode: "environment",
+                                zoom: true,
+                                width: { ideal: 1920 },
+                                height: { ideal: 1080 }
+                            }
+                        };
+                        const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
-                    // Mark as granted so we don't ask again this session
-                    permissionGranted = true;
+                        // If successful, stop this stream immediately to release camera for the library
+                        stream.getTracks().forEach(track => track.stop());
+
+                        // Mark as granted so we don't ask again this session
+                        permissionGranted = true;
+                    }
 
                 } catch (err) {
                     console.warn("Permission check failed:", err);
