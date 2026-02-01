@@ -2413,7 +2413,32 @@ function startConfetti() {
     // Placeholder for confetti animation
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+    // --- ORIENTATION LOCK LOGIC ---
+    const checkOrientation = () => {
+        const overlay = document.getElementById('orientation-lock-overlay');
+        if (!overlay) return;
+
+        // Check if portrait
+        const isPortrait = window.matchMedia("(orientation: portrait)").matches;
+
+        // Optional: Check if touch device to reduce desktop annoyance? 
+        // User said: "wenn das gerät hochformat unterstützt" (supports portrait).
+        // Desktops support portrait logic via window size, but phones "rotate".
+        // Let's assume strict Landscape requirement for all.
+        if (isPortrait) {
+            overlay.classList.add('active');
+        } else {
+            overlay.classList.remove('active');
+        }
+    };
+
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', checkOrientation);
+    checkOrientation(); // Initial check
+
+    init(); // Call the original init function
+});
 
 // --- VOTING SYSTEM ---
 

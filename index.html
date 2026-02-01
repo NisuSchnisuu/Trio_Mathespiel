@@ -143,6 +143,12 @@
 
     <!-- QR SCANNER MODAL -->
     <div id="qr-modal" class="modal-overlay">
+        <!-- Zoom Slider (Vertical, Right Edge) -->
+        <div id="zoom-controls" class="zoom-slider-container">
+            <input type="range" id="zoom-slider" min="1" max="5" step="0.1" value="1">
+            <div id="zoom-level-display" class="zoom-label">1.0x</div>
+        </div>
+
         <div class="modal-content" style="max-width: 500px; width: 95%;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                 <h2 style="margin:0;">QR Code scannen</h2>
@@ -151,14 +157,25 @@
             </div>
             <div style="position: relative;">
                 <div id="reader" style="width: 100%; border-radius: 12px; overflow: hidden; background: #000;"></div>
-                <!-- Zoom Slider (Vertical) -->
-                <div id="zoom-controls" class="zoom-slider-container">
-                    <input type="range" id="zoom-slider" min="1" max="5" step="0.1" value="1" orient="vertical">
-                    <div id="zoom-level-display" class="zoom-label">1.0x</div>
-                </div>
             </div>
             <p style="margin-top:15px; color:#cbd5e1; font-size:0.9rem;">Richte die Kamera auf den QR-Code des Hosts.
             </p>
+        </div>
+    </div>
+
+    <!-- ORIENTATION LOCK MODAL -->
+    <div id="orientation-lock-overlay" class="orientation-overlay">
+        <div class="orientation-content">
+            <div class="rotate-animation">
+                <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none"
+                    class="phone-icon" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                    <path d="M12 18h.01"></path>
+                </svg>
+            </div>
+            <h2>Bitte Gerät drehen</h2>
+            <p>Das Spiel ist für das <strong>Querformat</strong> optimiert.</p>
         </div>
     </div>
 

@@ -1405,471 +1405,563 @@ select option {
 .quick-join-mode .action-buttons {
     width: 100%;
     max-width: 400px;
-    /* Match input width usually */
     margin: 0 auto;
+}
 
-    /* ZOOM SLIDER */
-    .zoom-slider-container {
-        position: absolute;
-        right: 15px;
-        top: 50%;
-        transform: translateY(-50%);
-        height: 60%;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 10px;
-        z-index: 100;
-        pointer-events: none;
+/* ZOOM SLIDER - Fixed Rotated Position */
+.zoom-slider-container {
+    position: fixed;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px;
+    height: 300px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    pointer-events: none;
+}
+
+#zoom-slider {
+    width: 250px;
+    /* Effective Height */
+    height: 20px;
+    /* Effective Width */
+    transform: rotate(-90deg);
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 10px;
+    outline: none;
+    pointer-events: auto;
+    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+#zoom-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 28px;
+    height: 28px;
+    background: var(--primary-color);
+    border: 3px solid white;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+#zoom-slider::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+    background: var(--primary-color);
+    border: 3px solid white;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.zoom-label {
+    position: absolute;
+    bottom: -40px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 700;
+    font-family: monospace;
+}
+
+/* ORIENTATION LOCK OVERLAY */
+.orientation-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: var(--background-dark);
+    z-index: 99999;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    backdrop-filter: blur(10px);
+}
+
+.orientation-overlay.active {
+    display: flex;
+}
+
+.orientation-content h2 {
+    font-size: 2rem;
+    margin: 30px 0 10px 0;
+    color: var(--secondary-color);
+}
+
+.orientation-content p {
+    font-size: 1.2rem;
+    color: var(--text-muted);
+}
+
+.rotate-animation {
+    color: white;
+    animation: rotateIcon 2s infinite ease-in-out;
+}
+
+@keyframes rotateIcon {
+    0% {
+        transform: rotate(0deg);
+        opacity: 0.8;
     }
 
-    #zoom-slider {
-        -webkit-appearance: slider-vertical;
-        appearance: slider-vertical;
-        width: 30px;
-        flex-grow: 1;
-        pointer-events: auto;
-        accent-color: var(--primary-color);
-        background: rgba(0, 0, 0, 0.3);
-        border-radius: 15px;
-        cursor: pointer;
-        margin: 0;
-    }
-
-    .zoom-label {
-        background: rgba(0, 0, 0, 0.7);
-        color: white;
-        padding: 4px 8px;
-        border-radius: 6px;
-        font-size: 0.9rem;
-        font-weight: bold;
-        pointer-events: auto;
-        min-width: 45px;
-        text-align: center;
-    }
-
-
-    .quick-join-mode .join-section {
-        margin-top: 0 !important;
-    }
-
-    .quick-join-mode #join-container {
-        display: flex;
-        flex-direction: column;
-    }
-
-    /* --- PWA INSTALL MODAL (Redesigned) --- */
-    .full-screen-overlay {
-        z-index: 9999 !important;
-        background: rgba(15, 23, 42, 0.85) !important;
-        /* Almost solid */
-        backdrop-filter: blur(15px);
-        display: none;
-        /* JS toggles active */
-        align-items: center;
-        justify-content: center;
-        opacity: 0;
-        transition: opacity 0.5s ease;
-        padding: 20px;
-        /* Add padding so content doesn't touch edges */
-    }
-
-    .full-screen-overlay.active {
-        display: flex;
+    25% {
+        transform: rotate(90deg);
         opacity: 1;
     }
 
-    .install-content {
-        max-width: 600px !important;
-        width: 90%;
-        max-height: 85vh;
-        overflow-y: auto;
-
-        /* Card Styling */
-        background: var(--background-panel) !important;
-        box-shadow: var(--shadow-lg) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        border-radius: 20px !important;
-        padding: 30px !important;
-
-        text-align: center;
-        position: relative;
-        /* For close button absolute pos */
+    50% {
+        transform: rotate(90deg);
+        opacity: 1;
     }
 
-    .install-header {
-        margin-bottom: 40px;
+    75% {
+        transform: rotate(0deg);
+        opacity: 0.8;
     }
 
-    .app-icon-large {
-        font-size: 3rem;
-        display: block;
-        margin-bottom: 20px;
-        animation: bounce 2s infinite;
+    100% {
+        transform: rotate(0deg);
+        opacity: 0.8;
+    }
+}
+
+
+
+.quick-join-mode .join-section {
+    margin-top: 0 !important;
+}
+
+.quick-join-mode #join-container {
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- PWA INSTALL MODAL (Redesigned) --- */
+.full-screen-overlay {
+    z-index: 9999 !important;
+    background: rgba(15, 23, 42, 0.85) !important;
+    /* Almost solid */
+    backdrop-filter: blur(15px);
+    display: none;
+    /* JS toggles active */
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    padding: 20px;
+    /* Add padding so content doesn't touch edges */
+}
+
+.full-screen-overlay.active {
+    display: flex;
+    opacity: 1;
+}
+
+.install-content {
+    max-width: 600px !important;
+    width: 90%;
+    max-height: 85vh;
+    overflow-y: auto;
+
+    /* Card Styling */
+    background: var(--background-panel) !important;
+    box-shadow: var(--shadow-lg) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 20px !important;
+    padding: 30px !important;
+
+    text-align: center;
+    position: relative;
+    /* For close button absolute pos */
+}
+
+.install-header {
+    margin-bottom: 40px;
+}
+
+.app-icon-large {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 20px;
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+
+    0%,
+    20%,
+    50%,
+    80%,
+    100% {
+        transform: translateY(0);
     }
 
-    @keyframes bounce {
-
-        0%,
-        20%,
-        50%,
-        80%,
-        100% {
-            transform: translateY(0);
-        }
-
-        40% {
-            transform: translateY(-10px);
-        }
-
-        60% {
-            transform: translateY(-5px);
-        }
+    40% {
+        transform: translateY(-10px);
     }
 
-    .install-title {
-        font-size: 2.5rem;
-        font-weight: 800;
-        margin-bottom: 10px;
-        background: linear-gradient(135deg, #fff, #94a3b8);
-        background-clip: text;
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+    60% {
+        transform: translateY(-5px);
+    }
+}
+
+.install-title {
+    font-size: 2.5rem;
+    font-weight: 800;
+    margin-bottom: 10px;
+    background: linear-gradient(135deg, #fff, #94a3b8);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.install-subtitle {
+    font-size: 1.2rem;
+    color: var(--text-muted);
+}
+
+/* Guide Container */
+.platform-guide {
+    background: var(--background-panel);
+    border-radius: 20px;
+    padding: 30px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+    animation: slideUp 0.5s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
     }
 
-    .install-subtitle {
-        font-size: 1.2rem;
-        color: var(--text-muted);
+    to {
+        transform: translateY(0);
+        opacity: 1;
     }
+}
 
-    /* Guide Container */
-    .platform-guide {
-        background: var(--background-panel);
-        border-radius: 20px;
-        padding: 30px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
-        animation: slideUp 0.5s ease-out;
-    }
+.platform-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 30px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 20px;
+}
 
-    @keyframes slideUp {
-        from {
-            transform: translateY(20px);
-            opacity: 0;
-        }
+.icon-os {
+    font-size: 2rem;
+}
 
-        to {
-            transform: translateY(0);
-            opacity: 1;
-        }
-    }
+.platform-header h3 {
+    font-size: 1.5rem;
+    color: white;
+    font-weight: 700;
+}
 
-    .platform-header {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 15px;
-        margin-bottom: 30px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        padding-bottom: 20px;
-    }
+/* Steps Grid */
+.steps-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+}
 
-    .icon-os {
-        font-size: 2rem;
-    }
+.single-step {
+    grid-template-columns: 1fr 1fr;
+    /* For desktop simpler steps */
+}
 
-    .platform-header h3 {
-        font-size: 1.5rem;
-        color: white;
-        font-weight: 700;
-    }
+.step-card {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    padding: 20px 15px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    height: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
 
-    /* Steps Grid */
+.step-num {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--primary-color);
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 0.9rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.step-text {
+    font-size: 0.95rem;
+    color: #e2e8f0;
+    line-height: 1.4;
+    margin-bottom: 15px;
+    margin-top: 10px;
+}
+
+.step-text strong {
+    color: var(--secondary-color);
+}
+
+.step-icon {
+    font-size: 1.8rem;
+    color: var(--text-muted);
+}
+
+/* Refresh Hint */
+.refresh-hint-box {
+    margin-top: 40px;
+    padding: 15px;
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: 10px;
+    display: inline-block;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.refresh-hint-box p {
+    color: var(--success);
+    font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
     .steps-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 15px;
+        grid-template-columns: 1fr;
+        /* Stack on mobile */
+        gap: 25px;
     }
 
     .single-step {
-        grid-template-columns: 1fr 1fr;
-        /* For desktop simpler steps */
+        grid-template-columns: 1fr;
     }
 
-    .step-card {
-        background: rgba(255, 255, 255, 0.03);
-        border-radius: 12px;
-        padding: 20px 15px;
-        position: relative;
+    .install-title {
+        font-size: 1.8rem;
+    }
+}
+
+/* --- MOBILE & RESPONSIVE FIXES --- */
+
+/* 1. PWA Modal Overflow Fix */
+@media (max-height: 800px) {
+    .install-content {
+        padding: 20px !important;
+        max-height: 85vh;
+        /* Prevent going off screen */
+        overflow-y: auto;
+        /* Scrollable internal content */
+    }
+
+    .install-header {
+        margin-bottom: 20px;
+    }
+
+    .app-icon-large {
+        font-size: 2rem;
+        margin-bottom: 10px;
+    }
+
+    .install-title {
+        font-size: 1.8rem;
+    }
+}
+
+/* 2. Global Mobile Scaling */
+@media (max-width: 768px) {
+
+    /* PWA Modal Mobile */
+    .steps-grid {
+        grid-template-columns: 1fr;
+        /* Stack cards */
+    }
+
+    .install-content {
+        width: 100%;
+        max-width: 100% !important;
+        border-radius: 0;
         display: flex;
         flex-direction: column;
-        align-items: center;
-        justify-content: space-between;
-        height: 100%;
-        border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
-    .step-num {
-        position: absolute;
-        top: -10px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: var(--primary-color);
-        color: white;
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        font-size: 0.9rem;
-        font-weight: bold;
-        display: flex;
-        align-items: center;
         justify-content: center;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        margin: 0;
     }
 
-    .step-text {
-        font-size: 0.95rem;
-        color: #e2e8f0;
-        line-height: 1.4;
-        margin-bottom: 15px;
-        margin-top: 10px;
+    /* GLOBAL APP SCALING */
+    :root {
+        --mobile-scale: 0.85;
+        /* Scale down everything slightly */
     }
 
-    .step-text strong {
-        color: var(--secondary-color);
+    body {
+        font-size: 14px;
+        /* Base size reduction */
     }
 
-    .step-icon {
-        font-size: 1.8rem;
-        color: var(--text-muted);
+    /* Make Grid Smaller to fit */
+    .game-grid-container {
+        padding: 5px;
+        /* Minimal padding */
     }
 
-    /* Refresh Hint */
-    .refresh-hint-box {
-        margin-top: 40px;
+    .grid-cell {
+        font-size: 1.1rem;
+        /* Smaller numbers */
+        border-radius: 4px;
+    }
+
+    /* Dashboard Elements */
+    .target-number {
+        font-size: 2.5rem;
+    }
+
+    .buzzer-container button {
         padding: 15px;
-        background: rgba(16, 185, 129, 0.1);
-        border-radius: 10px;
-        display: inline-block;
-        border: 1px solid rgba(16, 185, 129, 0.2);
+        font-size: 1.5rem;
     }
 
-    .refresh-hint-box p {
-        color: var(--success);
-        font-weight: 500;
+    /* Ensure Game View doesn't scroll if possible */
+    #game-view {
+        padding: 10px;
+        gap: 10px;
+        height: 100vh;
+        overflow: hidden;
+    }
+}
+
+/* 3. ROTATE DEVICE OVERLAY */
+#rotate-overlay {
+    display: none;
+    z-index: 10000 !important;
+    /* Above everything */
+    background: #0f172a !important;
+}
+
+@keyframes spin-slow {
+    from {
+        transform: rotate(0deg);
     }
 
-    /* Responsive */
-    @media (max-width: 640px) {
-        .steps-grid {
-            grid-template-columns: 1fr;
-            /* Stack on mobile */
-            gap: 25px;
-        }
-
-        .single-step {
-            grid-template-columns: 1fr;
-        }
-
-        .install-title {
-            font-size: 1.8rem;
-        }
+    to {
+        transform: rotate(360deg);
     }
+}
 
-    /* --- MOBILE & RESPONSIVE FIXES --- */
-
-    /* 1. PWA Modal Overflow Fix */
-    @media (max-height: 800px) {
-        .install-content {
-            padding: 20px !important;
-            max-height: 85vh;
-            /* Prevent going off screen */
-            overflow-y: auto;
-            /* Scrollable internal content */
-        }
-
-        .install-header {
-            margin-bottom: 20px;
-        }
-
-        .app-icon-large {
-            font-size: 2rem;
-            margin-bottom: 10px;
-        }
-
-        .install-title {
-            font-size: 1.8rem;
-        }
-    }
-
-    /* 2. Global Mobile Scaling */
-    @media (max-width: 768px) {
-
-        /* PWA Modal Mobile */
-        .steps-grid {
-            grid-template-columns: 1fr;
-            /* Stack cards */
-        }
-
-        .install-content {
-            width: 100%;
-            max-width: 100% !important;
-            border-radius: 0;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            margin: 0;
-        }
-
-        /* GLOBAL APP SCALING */
-        :root {
-            --mobile-scale: 0.85;
-            /* Scale down everything slightly */
-        }
-
-        body {
-            font-size: 14px;
-            /* Base size reduction */
-        }
-
-        /* Make Grid Smaller to fit */
-        .game-grid-container {
-            padding: 5px;
-            /* Minimal padding */
-        }
-
-        .grid-cell {
-            font-size: 1.1rem;
-            /* Smaller numbers */
-            border-radius: 4px;
-        }
-
-        /* Dashboard Elements */
-        .target-number {
-            font-size: 2.5rem;
-        }
-
-        .buzzer-container button {
-            padding: 15px;
-            font-size: 1.5rem;
-        }
-
-        /* Ensure Game View doesn't scroll if possible */
-        #game-view {
-            padding: 10px;
-            gap: 10px;
-            height: 100vh;
-            overflow: hidden;
-        }
-    }
-
-    /* 3. ROTATE DEVICE OVERLAY */
+/* Show Rotate Overlay on Portrait Mobile */
+@media (orientation: portrait) and (max-width: 1024px) {
     #rotate-overlay {
-        display: none;
-        z-index: 10000 !important;
-        /* Above everything */
-        background: #0f172a !important;
+        display: flex !important;
     }
 
-    @keyframes spin-slow {
-        from {
-            transform: rotate(0deg);
-        }
+    /* Hide other modals logic if needed, but z-index handles it */
+}
 
-        to {
-            transform: rotate(360deg);
-        }
+/* 4. MOBILE LANDSCAPE OPTIMIZATION */
+@media (orientation: landscape) and (max-height: 600px) {
+
+    /* Scale down UI for short screens */
+    :root {
+        --mobile-scale: 0.7;
+        /* Smaller scale */
     }
 
-    /* Show Rotate Overlay on Portrait Mobile */
-    @media (orientation: portrait) and (max-width: 1024px) {
-        #rotate-overlay {
-            display: flex !important;
-        }
-
-        /* Hide other modals logic if needed, but z-index handles it */
+    body {
+        font-size: 12px;
+        padding: 0;
+        /* Minimize padding */
     }
 
-    /* 4. MOBILE LANDSCAPE OPTIMIZATION */
-    @media (orientation: landscape) and (max-height: 600px) {
-
-        /* Scale down UI for short screens */
-        :root {
-            --mobile-scale: 0.7;
-            /* Smaller scale */
-        }
-
-        body {
-            font-size: 12px;
-            padding: 0;
-            /* Minimize padding */
-        }
-
-        #game-view {
-            flex-direction: row !important;
-            /* Force side-by-side */
-            padding: 4px !important;
-            gap: 8px !important;
-            height: 100dvh;
-            overflow: hidden;
-        }
-
-        /* Grid Container */
-        .game-grid-container {
-            flex: 1;
-            /* Take available space */
-            height: 100%;
-            /* Max height */
-            padding: 4px;
-        }
-
-        .game-grid {
-            height: 100%;
-            width: auto;
-            /* Allow width to shrink */
-            aspect-ratio: 1/1;
-            margin: 0 auto;
-        }
-
-        .grid-cell {
-            font-size: 1rem;
-        }
-
-        /* Dashboard */
-        .game-dashboard {
-            flex: 0 0 160px;
-            /* Fixed TINY width */
-            width: 160px;
-            gap: 5px;
-            padding-right: 4px;
-        }
-
-        .target-number {
-            font-size: 1.8rem;
-        }
-
-        .target-display {
-            padding: 6px;
-        }
-
-        .player-list h3 {
-            font-size: 0.9rem;
-            margin-bottom: 4px;
-        }
-
-        .player-item {
-            padding: 4px;
-            font-size: 0.8rem;
-        }
-
-        .buzzer-container button {
-            padding: 8px;
-            font-size: 1rem;
-        }
-
-        /* Hide non-essential top bar in game if exists */
-        .difficulty-display {
-            font-size: 0.7rem;
-            padding: 2px 4px;
-        }
+    #game-view {
+        flex-direction: row !important;
+        /* Force side-by-side */
+        padding: 4px !important;
+        gap: 8px !important;
+        height: 100dvh;
+        overflow: hidden;
     }
+
+    /* Grid Container */
+    .game-grid-container {
+        flex: 1;
+        /* Take available space */
+        height: 100%;
+        /* Max height */
+        padding: 4px;
+    }
+
+    .game-grid {
+        height: 100%;
+        width: auto;
+        /* Allow width to shrink */
+        aspect-ratio: 1/1;
+        margin: 0 auto;
+    }
+
+    .grid-cell {
+        font-size: 1rem;
+    }
+
+    /* Dashboard */
+    .game-dashboard {
+        flex: 0 0 160px;
+        /* Fixed TINY width */
+        width: 160px;
+        gap: 5px;
+        padding-right: 4px;
+    }
+
+    .target-number {
+        font-size: 1.8rem;
+    }
+
+    .target-display {
+        padding: 6px;
+    }
+
+    .player-list h3 {
+        font-size: 0.9rem;
+        margin-bottom: 4px;
+    }
+
+    .player-item {
+        padding: 4px;
+        font-size: 0.8rem;
+    }
+
+    .buzzer-container button {
+        padding: 8px;
+        font-size: 1rem;
+    }
+
+    /* Hide non-essential top bar in game if exists */
+    .difficulty-display {
+        font-size: 0.7rem;
+        padding: 2px 4px;
+    }
+}
