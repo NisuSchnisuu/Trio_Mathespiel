@@ -1573,18 +1573,8 @@ function handleModalSync(remoteState) {
         const headerOwner = appState.buzzerOwner;
         const isOwner = (headerOwner === appState.playerId);
 
-        // If I am NOT the owner, check if I wanted to close this
-        if (!isOwner && appState.localModalClosed) {
-            // User explicitly closed this spectator session. Keep it closed.
-            // Unless a NEW buzzer session started? 
-            // We detect new session by timestamp usually, but here we just rely on 
-            // "localModalClosed" being reset when the modal CLOSES properly (in else block below).
-            // Wait, if a NEW player buzzes, status/modal might briefly go null then object again.
-            // We need to reset localModalClosed when buzzerOwner changes!
-            // Done in handleBuzzerOwnerChange.
+        // MOVED CHECK TO BOTTOM TO ALLOW DATA SYNC
 
-            return;
-        }
 
         const observeMode = (appState.settings && appState.settings.observeMode !== undefined) ? appState.settings.observeMode : true;
 
@@ -1614,7 +1604,15 @@ function handleModalSync(remoteState) {
             return;
         }
 
+        // --- VISIBILITY CHECK ---
+        // If I am NOT the owner, check if I wanted to close this
+        if (!isOwner && appState.localModalClosed) {
+            return; // Data is enabled/updated, but we keep it hidden.
+        }
+
         modal.classList.add('active');
+        if (modal.style.display === 'none') modal.style.display = ''; // Unhide
+
         modal.style.display = 'flex';
 
         // Show Target

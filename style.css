@@ -897,12 +897,17 @@ select option {
 
 /* Selection & Highlight States */
 .grid-cell.selected-border {
-    border: 4px solid #4ade80 !important;
-    /* Green-400 */
-    box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+    border: none !important;
+    background: #475569 !important;
+    /* Slate-600 */
+    color: #cbd5e1 !important;
+    /* Light gray text */
+    filter: grayscale(100%);
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+    /* Inner shadow for depth */
     z-index: 10;
-    transform: scale(1.05);
-    /* Slightly larger */
+    transform: scale(0.95);
+    /* Slightly smaller to indicate "pressed/inactive" */
 }
 
 /* Remove dimming logic for now per request, or strictly for non-owners later */
