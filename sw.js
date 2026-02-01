@@ -5,8 +5,8 @@ const ASSETS = [
     './style.css',
     './script.js',
     './firebase-config.js',
-    './icon-192.png',
-    './icon-512.png'
+    './assets/Trio-logo-192x192.png',
+    './assets/Trio-logo-512x512.png'
 ];
 
 // Install Event
