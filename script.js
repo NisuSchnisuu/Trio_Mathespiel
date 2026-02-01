@@ -273,6 +273,8 @@ function enableQuickJoinMode() {
 
 // --- Event Listeners ---
 function setupEventListeners() {
+    setupLobbyNewEvents(); // Bind new lobby buttons
+
     // Create Game
     buttons.createGame.addEventListener('click', () => {
         const name = inputs.playerName.value.trim();
@@ -510,7 +512,10 @@ function enterWaitingRoom() {
     switchView('waiting');
 
     // UI Updates
-    elements.lobbyCode.innerText = appState.gameId;
+    if (elements.lobbyCode) elements.lobbyCode.innerText = appState.gameId;
+    const modalCode = document.getElementById('qr-modal-code');
+    if (modalCode) modalCode.innerText = appState.gameId;
+
 
     // QR Code with Direct Link
     // Construct URL: Current Base + ?join=GAMEID
@@ -533,52 +538,50 @@ function enterWaitingRoom() {
 
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(joinUrl)}`;
 
-    elements.lobbyQR.innerHTML = `
-        <img src="${qrUrl}" alt="Game QR Code" style="max-width:200px; width:100%; border:4px solid white; border-radius:8px;" />
-    `;
-
-    // Warn if on localhost
-    const hostname = window.location.hostname;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        const warnDiv = document.createElement('div');
-        warnDiv.style.backgroundColor = '#451a03';
-        warnDiv.style.color = '#fbbf24';
-        warnDiv.style.padding = '10px';
-        warnDiv.style.borderRadius = '8px';
-        warnDiv.style.marginTop = '15px';
-        warnDiv.style.fontSize = '0.9rem';
-        warnDiv.style.lineHeight = '1.4';
-        warnDiv.innerHTML = `
-            <strong>⚠️ ACHTUNG:</strong><br>
-            Du bist auf <code>${hostname}</code>.<br>
-            Andere Geräte können diesen QR-Code nicht scannen.<br>
-            Bitte öffne die Seite über deine <strong>Netzwerk-IP</strong> (z.B. 192.168.X.X), damit der QR-Code funktioniert.
+    // Target the NEW Large QR Container in Modal
+    const qrContainer = document.getElementById('lobby-qr-large-container');
+    if (qrContainer) {
+        qrContainer.innerHTML = `
+            <img src="${qrUrl}" alt="Game QR Code" style="width:100%; height:auto; border-radius:8px;" />
         `;
-        elements.lobbyQR.appendChild(warnDiv);
+
+        // Warn if on localhost
+        const hostname = window.location.hostname;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            const warnDiv = document.createElement('div');
+            warnDiv.style.backgroundColor = '#451a03';
+            warnDiv.style.color = '#fbbf24';
+            warnDiv.style.padding = '10px';
+            warnDiv.style.borderRadius = '8px';
+            warnDiv.style.marginTop = '15px';
+            warnDiv.style.fontSize = '0.9rem';
+            warnDiv.style.lineHeight = '1.4';
+            warnDiv.innerHTML = `
+                <strong>⚠️ ACHTUNG:</strong><br>
+                Du bist auf <code>${hostname}</code>.<br>
+                Andere Geräte können diesen QR-Code nicht scannen.<br>
+                Bitte öffne die Seite über deine <strong>Netzwerk-IP</strong> (z.B. 192.168.X.X).
+            `;
+            qrContainer.appendChild(warnDiv);
+        }
     }
+
+    // Host Controls Visibility
+    // Note: buttons.startGame might point to old ID? 
+    // script.js:36: startGame: document.getElementById('btn-start-game'),
+    // index.html:221: <button id="btn-start-game" ...>
+    // ID matches.
+    const statusText = document.getElementById('lobby-status-text');
 
     if (appState.isHost) {
-        buttons.startGame.style.display = 'block';
-        document.getElementById('lobby-status-text').style.display = 'none';
+        if (buttons.startGame) buttons.startGame.style.display = 'block';
+        if (statusText) statusText.style.display = 'none';
     } else {
-        buttons.startGame.style.display = 'none';
-        document.getElementById('lobby-status-text').style.display = 'block';
-        document.getElementById('lobby-status-text').innerText = "Warte auf Host...";
-    }
-
-    // Add Leave Button if not exists
-    if (!document.getElementById('btn-leave-lobby')) {
-        const leaveBtn = document.createElement('button');
-        leaveBtn.id = 'btn-leave-lobby';
-        leaveBtn.className = 'btn-leave';
-        leaveBtn.innerText = 'Lobby verlassen';
-        leaveBtn.onclick = () => {
-            showConfirm("Lobby verlassen?", "Möchtest du die Lobby verlassen?", () => { leaveGame(); });
-        };
-        elements.lobbyQR.parentNode.appendChild(leaveBtn);
-        // Or append elsewhere? lobby-container seems best.
-        // Actually let's put it at the bottom of the container
-        document.querySelector('#waiting-room-view .lobby-container').appendChild(leaveBtn);
+        if (buttons.startGame) buttons.startGame.style.display = 'none';
+        if (statusText) {
+            statusText.style.display = 'block';
+            statusText.innerText = "Warte auf Host...";
+        }
     }
 }
 
@@ -836,7 +839,6 @@ function setupQRScanner() {
     const scanBtn = document.getElementById('btn-scan-qr');
     const qrModal = document.getElementById('qr-modal');
     const closeQrBtn = document.getElementById('btn-close-qr');
-    const closeQrBtn = document.getElementById('btn-close-qr');
     let html5QrcodeScanner = null;
     let permissionGranted = false; // Cache permission status
 
@@ -883,207 +885,175 @@ function setupQRScanner() {
                     return;
                 }
             }
-            qrModal.classList.remove('active');
-            return;
-        }
 
             // Init Scanner Library
             if (!html5QrcodeScanner) {
-            // Verbose false
-            html5QrcodeScanner = new Html5Qrcode("reader", false);
-        }
-
-        // OPTIMIZATION:
-        // 1. fps: 15 (faster scanning)
-        // 2. qrbox: slightly larger
-        // 3. aspectRatio: 1.0 (square)
-        // 4. experimentalFeatures: useBarCodeDetectorIfSupported (uses native android API if available -> super fast)
-        const config = {
-            fps: 15,
-            qrbox: { width: 300, height: 300 },
-            aspectRatio: 1.0,
-            experimentalFeatures: {
-                useBarCodeDetectorIfSupported: true
+                // Verbose false
+                html5QrcodeScanner = new Html5Qrcode("reader", false);
             }
-        };
 
-        // Camera Config with Zoom hint
-        // Note: Html5QrcodeScanner 'start' method takes config. 
-        // We can try to pass advanced constraints if the library supports passing MediaTrackConstraints.
-        // Documentation says: start(cameraIdOrConfig, configuration, qrCodeSuccessCallback...)
-        // cameraIdOrConfig can be { facingMode: "environment" } OR { deviceId: ... }
-        // To use zoom, we need 'advanced' constraints.
-
-        const cameraConfig = {
-            facingMode: "environment"
-        };
-
-        // HTML5-QRCode doesn't explicitly document passing 'advanced' constraints in the simple config object easily,
-        // but let's try standard getUserMedia constraint format.
-        // If that fails, we rely on the library's default.
-        // NOTE: The library creates its own stream. 
-        // We can try to force high res which often equals "less wide angle" on some phones, effectively zooming.
-
-        html5QrcodeScanner.start(
-            cameraConfig,
-            config,
-            (decodedText, decodedResult) => {
-                // SUCCESS
-                console.log("Scan success:", decodedText);
-
-                // Handle URL or Code
-                let code = decodedText;
-
-                // If URL, extract 'join' param
-                try {
-                    const url = new URL(decodedText);
-                    const joinParam = url.searchParams.get('join');
-                    if (joinParam) code = joinParam;
-                } catch (e) {
-                    // Not a URL, use raw text
+            // OPTIMIZATION:
+            // 1. fps: 15 (faster scanning)
+            // 2. qrbox: slightly larger
+            // 3. aspectRatio: 1.0 (square)
+            // 4. experimentalFeatures: useBarCodeDetectorIfSupported (uses native android API if available -> super fast)
+            const config = {
+                fps: 15,
+                qrbox: { width: 300, height: 300 },
+                aspectRatio: 1.0,
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true
                 }
+            };
 
-                if (code && code.length >= 4) { // Basic validation
-                    // Stop scanner
-                    html5QrcodeScanner.stop().then(() => {
-                        qrModal.classList.remove('active');
+            // Camera Config with Zoom hint
+            // Note: Html5QrcodeScanner 'start' method takes config. 
+            // We can try to pass advanced constraints if the library supports passing MediaTrackConstraints.
+            // Documentation says: start(cameraIdOrConfig, configuration, qrCodeSuccessCallback...)
+            // cameraIdOrConfig can be { facingMode: "environment" } OR { deviceId: ... }
+            // To use zoom, we need 'advanced' constraints.
 
-                        // FILL & FORCE REDIRECT/RELOAD
-                        // This guarantees we enter the "Clean Join State" same as native camera
-                        window.location.href = window.location.pathname + '?join=' + code;
+            const cameraConfig = {
+                facingMode: "environment"
+            };
 
-                    }).catch(err => console.error(err));
-                }
+            // HTML5-QRCode doesn't explicitly document passing 'advanced' constraints in the simple config object easily,
+            // but let's try standard getUserMedia constraint format.
+            // If that fails, we rely on the library's default.
+            // NOTE: The library creates its own stream. 
+            // We can try to force high res which often equals "less wide angle" on some phones, effectively zooming.
 
-            }, (errorMessage) => {
-                // parse error, ignore
-            }).then(() => {
-                // Init Zoom
-                setupZoomControls(html5QrcodeScanner);
+            html5QrcodeScanner.start(
+                cameraConfig,
+                config,
+                (decodedText, decodedResult) => {
+                    // SUCCESS
+                    console.log("Scan success:", decodedText);
+
+                    // Handle URL or Code
+                    let code = decodedText;
+
+                    // If URL, extract 'join' param
+                    try {
+                        const url = new URL(decodedText);
+                        const joinParam = url.searchParams.get('join');
+                        if (joinParam) code = joinParam;
+                    } catch (e) {
+                        // Not a URL, use raw text
+                    }
+
+                    if (code && code.length >= 4) { // Basic validation
+                        // Stop scanner
+                        html5QrcodeScanner.stop().then(() => {
+                            qrModal.classList.remove('active');
+
+                            // FILL & FORCE REDIRECT/RELOAD
+                            // This guarantees we enter the "Clean Join State" same as native camera
+                            window.location.href = window.location.pathname + '?join=' + code;
+
+                        }).catch(err => console.error(err));
+                    }
+
+                }, (errorMessage) => {
+                    // parse error, ignore
+                }).then(() => {
+                    // Init Zoom
+                    setupZoomControls(html5QrcodeScanner);
+                }).catch(err => {
+                    console.error("Error starting scanner", err);
+                    // This catch might still be hit if something else is wrong
+                    alert("Fehler beim Starten des Scanners: " + err);
+                    qrModal.classList.remove('active');
+                });
+        });
+    }
+
+    // Close QR Modal
+    if (closeQrBtn) {
+        closeQrBtn.addEventListener('click', () => {
+            stopScanner();
+        });
+    }
+
+    function stopScanner() {
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.stop().then(() => {
+                qrModal.classList.remove('active');
             }).catch(err => {
-                console.error("Error starting scanner", err);
-                // This catch might still be hit if something else is wrong
-                alert("Fehler beim Starten des Scanners: " + err);
+                console.error("Stop failed", err);
                 qrModal.classList.remove('active');
             });
-    });
-}
-
-// Close QR Modal
-if (closeQrBtn) {
-    closeQrBtn.addEventListener('click', () => {
-        stopScanner();
-    });
-}
-
-function stopScanner() {
-    if (html5QrcodeScanner) {
-        html5QrcodeScanner.stop().then(() => {
+        } else {
             qrModal.classList.remove('active');
-        }).catch(err => {
-            console.error("Stop failed", err);
-            qrModal.classList.remove('active');
-        });
-    } else {
-        qrModal.classList.remove('active');
-    }
-}
-}
-
-// Helper to handle hardware zoom
-async function setupZoomControls(html5QrcodeScanner) {
-    const zoomInBtn = document.getElementById('btn-zoom-in');
-    const zoomOutBtn = document.getElementById('btn-zoom-out');
-    const zoomDisplay = document.getElementById('zoom-level-display');
-
-    if (!zoomInBtn || !zoomOutBtn) return;
-
-    // Reset UI
-    zoomDisplay.style.display = 'none';
-    zoomInBtn.style.display = 'none';
-    zoomOutBtn.style.display = 'none';
-
-    // Wait a bit for the camera to actually start and track to be available
-    setTimeout(async () => {
-        try {
-            // Get the running track from the library provided mechanism if possible, 
-            // OR find the video element and get its stream. 
-            // HTML5-QRCode puts a <video> element inside the div#reader.
-            const videoEl = document.querySelector('#reader video');
-            if (!videoEl || !videoEl.srcObject) return;
-
-            const track = videoEl.srcObject.getVideoTracks()[0];
-            if (!track) return;
-
-            const capabilities = track.getCapabilities();
-            const settings = track.getSettings();
-
-            // Check for Zoom support
-            if (!capabilities.zoom) {
-                console.log("Zoom not supported by hardware");
-                return;
-            }
-
-            // Show Controls
-            zoomInBtn.style.display = 'flex';
-            zoomOutBtn.style.display = 'flex';
-            zoomDisplay.style.display = 'block';
-
-            let currentZoom = settings.zoom || capabilities.zoom.min || 1;
-            const min = capabilities.zoom.min;
-            const max = capabilities.zoom.max;
-            const step = capabilities.zoom.step || 0.1;
-
-            zoomDisplay.innerText = currentZoom.toFixed(1) + "x";
-
-            const applyZoom = async (val) => {
-                try {
-                    // Clamp
-                    val = Math.max(min, Math.min(val, max));
-                    await track.applyConstraints({ advanced: [{ zoom: val }] });
-                    currentZoom = val;
-                    zoomDisplay.innerText = val.toFixed(1) + "x";
-                } catch (e) {
-                    console.error("Zoom failed", e);
-                }
-            };
-
-            // Hold Logic
-            let zoomInterval = null;
-
-            const startZoom = (direction) => {
-                if (zoomInterval) clearInterval(zoomInterval);
-                // Instant first step
-                direction === 'in' ? applyZoom(currentZoom + step) : applyZoom(currentZoom - step);
-
-                // Continuous
-                zoomInterval = setInterval(() => {
-                    direction === 'in' ? applyZoom(currentZoom + step) : applyZoom(currentZoom - step);
-                }, 100); // 100ms repeat
-            };
-
-            const stopZoom = () => {
-                if (zoomInterval) clearInterval(zoomInterval);
-                zoomInterval = null;
-            };
-
-            // Touch & Mouse Events
-            const addHoldListeners = (btn, dir) => {
-                btn.onmousedown = () => startZoom(dir);
-                btn.ontouchstart = (e) => { e.preventDefault(); startZoom(dir); }; // Prevent defaults
-
-                btn.onmouseup = stopZoom;
-                btn.onmouseleave = stopZoom;
-                btn.ontouchend = stopZoom;
-            };
-
-            addHoldListeners(zoomInBtn, 'in');
-            addHoldListeners(zoomOutBtn, 'out');
-
-        } catch (e) {
-            console.error("Error setting up zoom", e);
         }
-    }, 1000); // 1s delay to ensure video is ready
+    }
+
+    // Helper to handle hardware zoom
+    async function setupZoomControls(html5QrcodeScanner) {
+        const zoomSlider = document.getElementById('zoom-slider');
+        const zoomDisplay = document.getElementById('zoom-level-display');
+        const zoomContainer = document.getElementById('zoom-controls');
+
+        if (!zoomSlider || !zoomContainer) return;
+
+        // Reset UI
+        zoomContainer.style.display = 'none';
+
+        // Wait a bit for the camera to actually start and track to be available
+        setTimeout(async () => {
+            try {
+                // Get the running track from the library provided mechanism if possible, 
+                // OR find the video element and get its stream. 
+                // HTML5-QRCode puts a <video> element inside the div#reader.
+                const videoEl = document.querySelector('#reader video');
+                if (!videoEl || !videoEl.srcObject) return;
+
+                const track = videoEl.srcObject.getVideoTracks()[0];
+                if (!track) return;
+
+                const capabilities = track.getCapabilities();
+                const settings = track.getSettings();
+
+                // Check for Zoom support
+                if (!capabilities.zoom) {
+                    console.log("Zoom not supported by hardware");
+                    return;
+                }
+
+                // Show Controls
+                zoomContainer.style.display = 'flex';
+                zoomDisplay.style.display = 'block';
+
+                const min = capabilities.zoom.min;
+                const max = capabilities.zoom.max;
+                const step = capabilities.zoom.step || 0.1;
+                let currentZoom = settings.zoom || min || 1;
+
+                // Configure Slider
+                zoomSlider.min = min;
+                zoomSlider.max = max;
+                zoomSlider.step = step;
+                zoomSlider.value = currentZoom;
+
+                zoomDisplay.innerText = currentZoom.toFixed(1) + "x";
+
+                // Input Event
+                zoomSlider.oninput = async (e) => {
+                    const val = parseFloat(e.target.value);
+                    try {
+                        await track.applyConstraints({ advanced: [{ zoom: val }] });
+                        zoomDisplay.innerText = val.toFixed(1) + "x";
+                    } catch (err) {
+                        console.error("Zoom failed", err);
+                    }
+                };
+
+            } catch (e) {
+                console.error("Error setting up zoom", e);
+            }
+        }, 1000); // 1s delay to ensure video is ready
+    }
+
 }
 
 function handleResultSync(res) {
@@ -2326,27 +2296,36 @@ function tryAdd(triplet, diff, addSol) {
     }
 }
 
-function renderLobbySlots(players) {
-    const container = document.getElementById('lobby-player-slots');
-    if (!container) return; // Safety
-    container.innerHTML = '';
+// NEW LOBBY RENDER LOGIC
+function renderLobbySlots(playersObj) {
+    const slotsContainer = document.getElementById('lobby-player-slots');
+    if (!slotsContainer) return;
 
-    const list = players ? Object.values(players) : [];
+    slotsContainer.innerHTML = '';
+    const players = Object.values(playersObj || {});
 
-    // Update Badge
-    const badge = document.getElementById('player-count');
-    if (badge) badge.innerText = list.length;
+    // UPDATE GRID CLASS BASED ON COUNT
+    slotsContainer.className = 'player-grid-dynamic'; // reset base class
+    if (players.length <= 2) slotsContainer.classList.add('grid-few');
+    else if (players.length <= 4) slotsContainer.classList.add('grid-medium');
+    else slotsContainer.classList.add('grid-many');
 
-    // Render occupied slots
-    list.forEach(p => {
-        const slot = document.createElement('div');
-        slot.className = 'lobby-slot occupied';
-        slot.innerText = p.name;
-        if (p.isHost) {
-            slot.style.border = '2px solid var(--warning)';
-            slot.innerHTML += ' 👑';
-        }
-        container.appendChild(slot);
+    // Status Text update
+    const statusText = document.getElementById('lobby-status-text');
+    if (statusText) statusText.textContent = `${players.length} Spieler bereit. Warte auf Host...`;
+
+    players.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'player-card-dynamic';
+
+        // Avatar (First letter)
+        const initial = p.name ? p.name.charAt(0).toUpperCase() : '?';
+
+        card.innerHTML = `
+            <div class="avatar">${initial}</div>
+            <div class="name">${p.name}</div>
+        `;
+        slotsContainer.appendChild(card);
     });
 }
 
@@ -2556,3 +2535,48 @@ function rerollTarget() {
     }).then(() => console.log("HOST: Target Reroll Update Success"))
         .catch(e => console.error("HOST: Target Reroll Update Failed", e));
 }
+
+// --- NEW LOBBY EVENTS ---
+function setupLobbyNewEvents() {
+    // QR Modal
+    const showQrBtn = document.getElementById('btn-show-qr-large');
+    const qrModalLarge = document.getElementById('lobby-qr-modal');
+    const closeQrLarge = document.getElementById('btn-close-qr-large');
+
+    if (showQrBtn && qrModalLarge) {
+        showQrBtn.addEventListener('click', () => {
+            qrModalLarge.classList.add('active');
+        });
+    }
+
+    if (closeQrLarge && qrModalLarge) {
+        closeQrLarge.addEventListener('click', () => {
+            qrModalLarge.classList.remove('active');
+        });
+    }
+
+    // Close on click outside
+    if (qrModalLarge) {
+        qrModalLarge.addEventListener('click', (e) => {
+            if (e.target === qrModalLarge) qrModalLarge.classList.remove('active');
+        });
+    }
+
+    // Leave Button (New Icon)
+    const leaveBtn = document.getElementById('btn-leave-lobby');
+    if (leaveBtn) {
+        leaveBtn.addEventListener('click', () => {
+            // Leave logic
+            if (typeof leaveGame === 'function') {
+                showConfirm("Lobby verlassen?", "Möchtest du die Lobby verlassen?", () => { leaveGame(); });
+            } else {
+                if (confirm("Lobby verlassen?")) {
+                    window.location.reload();
+                }
+            }
+        });
+    }
+}
+
+
+
