@@ -30,7 +30,9 @@ const elements = {
 };
 
 const buttons = {
-    createGame: document.getElementById('btn-create'),
+    createGameTrigger: document.getElementById('btn-open-create-modal'),
+    createGameConfirm: document.getElementById('btn-create-confirm'),
+    closeCreateModal: document.getElementById('btn-close-create-modal'),
     // joinGame removed
     enterGame: document.getElementById('btn-enter'),
     startGame: document.getElementById('btn-start-game'),
@@ -275,24 +277,49 @@ function enableQuickJoinMode() {
 function setupEventListeners() {
     setupLobbyNewEvents(); // Bind new lobby buttons
 
-    // Create Game
-    buttons.createGame.addEventListener('click', () => {
-        const name = inputs.playerName.value.trim();
-        if (!name) { showMessage('Fehler', 'Bitte gib deinen Namen ein!'); return; }
+    // 1. OPEN CREATE MODAL
+    if (buttons.createGameTrigger) {
+        buttons.createGameTrigger.addEventListener('click', () => {
+            const name = inputs.playerName.value.trim();
+            if (!name) { showMessage('Fehler', 'Bitte gib deinen Namen ein!'); return; }
 
-        // Persist Name
-        localStorage.setItem('trio_player_name', name);
-        // Persist Settings
-        const settings = {
-            difficulty: inputs.difficulty.value,
-            winningScore: inputs.winningScore.value,
-            customScore: inputs.customScore.value,
-            numberRange: inputs.numberRange ? inputs.numberRange.value : 'base'
-        };
-        localStorage.setItem('trio_game_settings', JSON.stringify(settings));
+            // Save name
+            localStorage.setItem('trio_player_name', name);
 
-        createGame(name);
-    });
+            // Open Modal
+            document.getElementById('create-game-modal').classList.add('active');
+        });
+    }
+
+    // 2. CLOSE CREATE MODAL
+    if (buttons.closeCreateModal) {
+        buttons.closeCreateModal.addEventListener('click', () => {
+            document.getElementById('create-game-modal').classList.remove('active');
+        });
+    }
+
+    // 3. CONFIRM CREATE GAME (Inside Modal)
+    if (buttons.createGameConfirm) {
+        buttons.createGameConfirm.addEventListener('click', () => {
+            const name = inputs.playerName.value.trim(); // Re-read just in case
+            // Settings are read from inputs directly in createGame()
+
+            // Persist Settings
+            const settings = {
+                difficulty: inputs.difficulty.value,
+                winningScore: inputs.winningScore.value,
+                customScore: inputs.customScore.value,
+                numberRange: inputs.numberRange ? inputs.numberRange.value : 'base'
+            };
+            localStorage.setItem('trio_game_settings', JSON.stringify(settings));
+
+            // Close Modal
+            document.getElementById('create-game-modal').classList.remove('active');
+
+            // Trigger Game Creation
+            createGame(name);
+        });
+    }
 
     // Enter Game (Join)
     buttons.enterGame.addEventListener('click', () => {

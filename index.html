@@ -13,7 +13,7 @@
         rel="stylesheet">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="style.css?v=1.2">
+    <link rel="stylesheet" href="style.css?v=1.3">
 
     <!-- Firebase SDK (Compat for simple script usage) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -40,107 +40,255 @@
     </script>
     <!-- QR Scanner Library -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+    <style>
+        /* New Lobby Layout Styles */
+        #lobby-view .lobby-container {
+            /* Override grid/flex from old css if needed */
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            gap: 60px;
+            max-width: 1000px;
+            padding: 60px;
+            text-align: left;
+        }
+
+        .lobby-left {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .lobby-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 20px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .lobby-separator {
+            width: 100%;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.1);
+            margin: 10px 0;
+            border: none;
+        }
+
+        /* Responsive Fix for Lobby */
+        @media (max-width: 768px) {
+            #lobby-view .lobby-container {
+                flex-direction: column;
+                gap: 40px;
+                padding: 30px;
+            }
+
+            .lobby-left,
+            .lobby-right {
+                align-items: center;
+                text-align: center;
+            }
+        }
+
+        /* Create Game Modal Styles - COMPACT MODE */
+        .settings-grid-modal {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            /* Reduced gap */
+            margin-bottom: 20px;
+            /* Reduced margin */
+            /* Removed overflow-y: auto to encourage fit */
+            padding: 0;
+            align-content: center;
+            height: 100%;
+        }
+
+        .setting-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            /* Reduced padding */
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            /* Center content vertically */
+            gap: 5px;
+            /* Reduced gap */
+            transition: background 0.2s;
+        }
+
+        .setting-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .setting-card label {
+            font-weight: 700;
+            color: var(--primary-color);
+            font-size: 1rem;
+            /* Slightly smaller */
+            margin-bottom: 0;
+        }
+
+        .setting-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.3;
+            margin-bottom: 5px;
+            /* Removed min-height to save space */
+        }
+
+        select,
+        input[type="number"] {
+            padding: 8px 12px !important;
+            /* Compact inputs */
+            font-size: 0.95rem !important;
+        }
+
+        @media (max-width: 600px) {
+            .settings-grid-modal {
+                grid-template-columns: 1fr;
+                /* overflow-y: auto;  Allow scroll on mobile - removed to try to fit if possible, but kept safe height */
+                overflow-y: auto;
+            }
+        }
+    </style>
 </head>
 
 <body>
     <!-- VIEW 1: LOBBY -->
     <section id="lobby-view" class="view active">
         <div class="lobby-container">
-            <!-- ... content ... -->
-            <div class="lobby-intro">
-                <h1 class="game-title">TRIO</h1>
+            <!-- LEFT: Intro & Name -->
+            <div class="lobby-left">
+                <h1 class="game-title" style="margin-bottom: 10px; font-size: 4rem;">TRIO</h1>
+                <p style="color: var(--text-muted); margin-bottom: 40px; font-size: 1.2rem;">Das ultimative Mathe-Battle
+                </p>
 
                 <button id="btn-trigger-install" class="btn-secondary"
-                    style="display: none; margin: 0 auto 20px auto; font-size: 0.9rem; padding: 6px 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">
+                    style="display: none; margin-bottom: 20px; font-size: 0.9rem; padding: 6px 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">
                     📲 App installieren
                 </button>
 
-                <div class="input-group">
-                    <label for="player-name">Dein Spielername</label>
-                    <input type="text" id="player-name" placeholder="z.B. MatheGenie" autocomplete="off">
+                <div class="input-group" style="width: 100%; text-align: left; margin: 0;">
+                    <label for="player-name" style="text-align: left;">Dein Spielername</label>
+                    <input type="text" id="player-name" placeholder="z.B. MatheGenie" autocomplete="off"
+                        style="width: 100%; max-width: 300px;">
                 </div>
             </div>
 
-            <!-- Main Actions -->
-            <div class="action-buttons">
-                <div id="create-container">
-                    <button class="btn-primary" id="btn-create"
-                        style="width:100%; background: var(--success); border-color: var(--success);">Spiel
-                        erstellen</button>
+            <!-- RIGHT: Actions -->
+            <div class="lobby-right">
+                <!-- Create Game Trigger -->
+                <button class="btn-primary" id="btn-open-create-modal"
+                    style="width:100%; background: var(--success); border-color: var(--success); padding: 18px; font-size: 1.2rem;">
+                    Spiel erstellen
+                </button>
 
-                    <!-- Settings available when creating -->
-                    <div class="settings-panel">
-                        <div class="settings-row" style="display: flex; gap: 10px;">
-                            <div class="settings-option" style="flex: 1;">
-                                <label for="difficulty">Schwierigkeit</label>
-                                <select id="difficulty" style="width:100%; padding: 8px; border-radius: 8px;">
-                                    <option value="normal" selected>Normal</option>
-                                    <option value="advanced">Fortgeschritten</option>
-                                    <option value="pro">Profi</option>
-                                    <option value="crazy">Verrückt</option>
-                                </select>
-                            </div>
-                            <div class="settings-option" style="flex: 1;">
-                                <label for="number-range">Zahlenraum</label>
-                                <select id="number-range" style="width:100%; padding: 8px; border-radius: 8px;">
-                                    <option value="base" selected>1-9 (Ziel 50)</option>
-                                    <option value="extended">1-20 (Ziel 100)</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="settings-row" style="display: flex; gap: 10px;">
-                            <div class="settings-option" style="flex: 1;">
-                                <label for="grid-size">Gittergröße</label>
-                                <select id="grid-size" style="width:100%; padding: 8px; border-radius: 8px;">
-                                    <option value="5">5x5 (Klein)</option>
-                                    <option value="7" selected>7x7 (Standard)</option>
-                                    <option value="9">9x9 (Groß)</option>
-                                </select>
-                            </div>
-                            <div class="settings-option" style="flex: 1;">
-                                <label for="winning-score">Ziel-Punkte</label>
-                                <select id="winning-score"
-                                    style="width:100%; padding: 8px; border-radius: 8px; margin-bottom: 5px;">
-                                    <option value="5">5 Punkte</option>
-                                    <option value="10" selected>10 Punkte</option>
-                                    <option value="custom">Benutzerdefiniert</option>
-                                </select>
-                                <input type="number" id="custom-score" placeholder="Punkte eingeben"
-                                    style="width:100%; padding: 8px; border-radius: 8px; display: none;">
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <!-- Separator -->
+                <hr class="lobby-separator">
 
-                <div class="join-section">
-                    <p style="margin-bottom:10px; color:#94a3b8; font-size:0.9rem;">— ODER —</p>
-
-                    <div id="join-container">
-                        <input type="text" id="join-code" placeholder="Game Code eingeben"
-                            style="margin-bottom: 8px; text-transform:uppercase;">
-                        <div style="display: flex; gap: 10px;">
-                            <button class="btn-primary" id="btn-enter" style="flex: 2;">Beitreten</button>
-                            <button class="btn-secondary" id="btn-scan-qr"
-                                style="flex: 1; padding: 0; display: flex; align-items: center; justify-content: center;">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2">
-                                    <path d="M3 7V5a2 2 0 0 1 2-2h2" />
-                                    <path d="M17 3h2a2 2 0 0 1 2 2v2" />
-                                    <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
-                                    <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
-                                    <rect x="7" y="7" width="3" height="3" />
-                                    <rect x="14" y="7" width="3" height="3" />
-                                    <rect x="7" y="14" width="3" height="3" />
-                                    <line x1="14" y1="14" x2="14" y2="14" />
-                                </svg>
-                            </button>
-                        </div>
+                <!-- Join Section (Preserved) -->
+                <div id="join-container" style="width: 100%;">
+                    <label style="display:block; color:var(--text-muted); margin-bottom:10px; font-size: 0.9rem;">Spiel
+                        beitreten</label>
+                    <input type="text" id="join-code" placeholder="Game Code eingeben"
+                        style="margin-bottom: 12px; text-transform:uppercase; width: 100%;">
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn-primary" id="btn-enter" style="flex: 2;">Beitreten</button>
+                        <button class="btn-secondary" id="btn-scan-qr"
+                            style="flex: 1; padding: 0; display: flex; align-items: center; justify-content: center;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+                                <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+                                <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+                                <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+                                <rect x="7" y="7" width="3" height="3" />
+                                <rect x="14" y="7" width="3" height="3" />
+                                <rect x="7" y="14" width="3" height="3" />
+                                <line x1="14" y1="14" x2="14" y2="14" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>
-        </div>
         </div>
     </section>
+
+    <!-- CREATE GAME MODAL -->
+    <div id="create-game-modal" class="modal-overlay">
+        <div class="modal-content"
+            style="width: 90%; max-width: 800px; height: auto; max-height: 85vh; display: flex; flex-direction: column; padding: 30px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h2 style="margin:0; font-size: 1.5rem;">Spiel konfigurieren</h2>
+                <button id="btn-close-create-modal" class="btn-icon-close"
+                    style="width:32px; height:32px; font-size:1.2rem;">&times;</button>
+            </div>
+
+            <div class="settings-grid-modal" style="flex: 1;">
+                <!-- Difficulty -->
+                <div class="setting-card">
+                    <label for="difficulty">Schwierigkeit</label>
+                    <p class="setting-desc">Bestimmt Operatoren und Komplexität.</p>
+                    <select id="difficulty" style="width:100%; border-radius: 8px;">
+                        <option value="normal" selected>Normal (+ - ·)</option>
+                        <option value="advanced">Fortgeschritten (Alle)</option>
+                        <option value="pro">Profi (Klammern & Logik)</option>
+                        <option value="crazy">Verrückt (Chaos Modus)</option>
+                    </select>
+                </div>
+
+                <!-- Number Range -->
+                <div class="setting-card">
+                    <label for="number-range">Zahlenraum</label>
+                    <p class="setting-desc">Bereich der Zahlen im Gitter.</p>
+                    <select id="number-range" style="width:100%; border-radius: 8px;">
+                        <option value="base" selected>1-9 (Ziel bis 50)</option>
+                        <option value="extended">1-20 (Ziel bis 100)</option>
+                    </select>
+                </div>
+
+                <!-- Grid Size -->
+                <div class="setting-card">
+                    <label for="grid-size">Gittergröße</label>
+                    <p class="setting-desc">Größeres Gitter = Mehr Möglichkeiten.</p>
+                    <select id="grid-size" style="width:100%; border-radius: 8px;">
+                        <option value="5">5x5 (Klein)</option>
+                        <option value="7" selected>7x7 (Standard)</option>
+                        <option value="9">9x9 (Groß)</option>
+                    </select>
+                </div>
+
+                <!-- Winning Score -->
+                <div class="setting-card">
+                    <label for="winning-score">Siegpunkte</label>
+                    <p class="setting-desc">Benötigte Runden für den Gesamtsieg.</p>
+                    <select id="winning-score" style="width:100%; border-radius: 8px; margin-bottom: 5px;">
+                        <option value="5">5 Punkte</option>
+                        <option value="10" selected>10 Punkte</option>
+                        <option value="custom">Benutzerdefiniert</option>
+                    </select>
+                    <input type="number" id="custom-score" placeholder="Punkte"
+                        style="width:100%; border-radius: 8px; display: none;">
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 15px;">
+                <button class="btn-primary" id="btn-create-confirm"
+                    style="background: var(--success); width: 100%; max-width: 250px; padding: 12px 24px; font-size: 1.1rem; border-radius: 50px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);">
+                    SPIEL STARTEN
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- QR SCANNER MODAL -->
     <div id="qr-modal" class="modal-overlay">
