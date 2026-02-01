@@ -1129,6 +1129,10 @@ select option {
 }
 
 /* MODAL STYLES */
+.modal-overlay.read-only #btn-close-calc-modal {
+    display: block !important;
+}
+
 .modal-overlay {
     display: none;
     position: fixed;

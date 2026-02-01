@@ -70,7 +70,10 @@ let appState = {
     penaltyInterval: null,
 
     // Teacher Mode State
-    teacherMode: false // Local toggle state
+    teacherMode: false, // Local toggle state
+
+    // Spectator State
+    localModalClosed: false // User manually closed the spectator modal
 };
 
 // --- View Management ---
@@ -400,6 +403,19 @@ function setupEventListeners() {
 
     // Init QR Scanner
     setupQRScanner();
+
+    // Close Spectator Modal
+    const btnCloseCalc = document.getElementById('btn-close-calc-modal');
+    if (btnCloseCalc) {
+        btnCloseCalc.addEventListener('click', () => {
+            // Only allow closing if read-only (spectator)
+            const modal = document.getElementById('calc-modal');
+            if (modal.classList.contains('read-only')) {
+                appState.localModalClosed = true;
+                modal.classList.remove('active');
+            }
+        });
+    }
 }
 
 function handleGlobalBack() {
@@ -1244,6 +1260,21 @@ function handleBuzzerClick() {
         showMessage('Gesperrt', `Du bist noch ${wait}s gesperrt!`);
         return;
     }
+
+    // If locked by someone else (SPECTATOR MODE) -> Re-open Modal if closed
+    if (appState.isLocked && appState.buzzerOwner !== appState.playerId) {
+        // Check if we previously closed it
+        if (appState.localModalClosed) {
+            appState.localModalClosed = false;
+            // Force re-sync / open
+            const modal = document.getElementById('calc-modal');
+            modal.classList.add('active'); // It should already be populated by sync
+            // Re-apply read-only just in case
+            modal.classList.add('read-only');
+        }
+        return;
+    }
+
     if (appState.isLocked && appState.buzzerOwner !== appState.playerId) return;
 
     // Firebase Transaction to claim buzzer
@@ -1491,6 +1522,20 @@ function handleModalSync(remoteState) {
         // Helper Vars (Declared ONCE)
         const headerOwner = appState.buzzerOwner;
         const isOwner = (headerOwner === appState.playerId);
+
+        // If I am NOT the owner, check if I wanted to close this
+        if (!isOwner && appState.localModalClosed) {
+            // User explicitly closed this spectator session. Keep it closed.
+            // Unless a NEW buzzer session started? 
+            // We detect new session by timestamp usually, but here we just rely on 
+            // "localModalClosed" being reset when the modal CLOSES properly (in else block below).
+            // Wait, if a NEW player buzzes, status/modal might briefly go null then object again.
+            // We need to reset localModalClosed when buzzerOwner changes!
+            // Done in handleBuzzerOwnerChange.
+
+            return;
+        }
+
         const observeMode = (appState.settings && appState.settings.observeMode !== undefined) ? appState.settings.observeMode : true;
 
         // Teacher Broadcast Logic
@@ -1567,6 +1612,8 @@ function handleModalSync(remoteState) {
 
     } else {
         closeCalculationModal(false); // Local close without push
+        // Reset local close state so next time it opens fresh
+        appState.localModalClosed = false;
     }
 }
 

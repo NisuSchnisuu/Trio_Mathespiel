@@ -492,7 +492,11 @@
     <!-- CALCULATION MODAL -->
     <div id="calc-modal" class="modal-overlay">
         <div class="modal-content">
-            <h2>Rechne!</h2>
+            <div style="position: relative;">
+                <h2 style="display: inline-block;">Rechne!</h2>
+                <button id="btn-close-calc-modal" class="btn-icon-close"
+                    style="position: absolute; right: 0; top: 0; display: none;">&times;</button>
+            </div>
             <h3 id="modal-target-display" style="text-align:center; color:#fbbf24; margin-bottom:10px;">Ziel: --</h3>
             <div class="formula-display" id="formula-display"></div>
 
