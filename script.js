@@ -407,12 +407,20 @@ function setupEventListeners() {
     // Close Spectator Modal
     const btnCloseCalc = document.getElementById('btn-close-calc-modal');
     if (btnCloseCalc) {
-        btnCloseCalc.addEventListener('click', () => {
+        btnCloseCalc.addEventListener('click', (e) => {
+            console.log("Close button clicked");
+            e.stopPropagation(); // Prevent bubbling
+            e.preventDefault();
+
             // Only allow closing if read-only (spectator)
             const modal = document.getElementById('calc-modal');
             if (modal.classList.contains('read-only')) {
+                console.log("Closing read-only modal");
                 appState.localModalClosed = true;
                 modal.classList.remove('active');
+                modal.style.display = 'none'; // Force hide over inline flex
+            } else {
+                console.log("Modal not read-only, ignoring close.");
             }
         });
     }
@@ -869,6 +877,13 @@ function subscribeToGame(gameId) {
             }
             if (data.veto) updateVetoUI(data.veto, Object.keys(data.players).length);
             if (appState.isHost && data.veto) checkVetoThreshold(data.veto, Object.keys(data.players).length);
+
+            // REFRESH Buzzer Name if active (Fix for "Jemand" on reload)
+            if (appState.buzzerOwner && appState.buzzerOwner !== appState.playerId) {
+                // Force update UI text now that we have player names
+                handleBuzzerOwnerChange(appState.buzzerOwner, null);
+                // Note: passing null timestamp as we don't want to re-trigger timer logic or effects, just text
+            }
         }
 
         if (appState.isHost) {
@@ -1284,6 +1299,7 @@ function handleBuzzerClick() {
             // Force re-sync / open
             const modal = document.getElementById('calc-modal');
             modal.classList.add('active'); // It should already be populated by sync
+            modal.style.display = ''; // RESET inline hide from close button
             // Re-apply read-only just in case
             modal.classList.add('read-only');
         }
@@ -1328,11 +1344,30 @@ function handleBuzzerOwnerChange(ownerId, timestamp) {
         }
     } else {
         const ownerName = appState.players[ownerId]?.name || 'Jemand';
-        buttons.buzzer.innerText = `${ownerName} RECHNET...`;
-        buttons.buzzer.classList.remove('active-buzzer');
-        buttons.buzzer.disabled = true;
-        appState.isLocked = true;
 
+        // Spectator Mode Check
+        // If I am allowed to observe, I can click the buzzer to re-open the modal
+        // Logic duplicated from handleModalSync
+        const isHostOwner = (appState.hostId && ownerId === appState.hostId);
+        const observeMode = (appState.settings && appState.settings.observeMode !== undefined) ? appState.settings.observeMode : true;
+        const teacherBroadcast = (appState.settings && appState.settings.teacherBroadcast);
+        const canObserve = appState.isHost || observeMode || (isHostOwner && teacherBroadcast);
+
+        if (canObserve) {
+            buttons.buzzer.innerText = `${ownerName} RECHNET... (ZUSCHAUEN)`;
+            buttons.buzzer.classList.remove('active-buzzer');
+            buttons.buzzer.disabled = false; // Enable for "Re-Open" action
+            buttons.buzzer.style.opacity = '1';
+            buttons.buzzer.style.cursor = 'pointer';
+        } else {
+            buttons.buzzer.innerText = `${ownerName} RECHNET...`;
+            buttons.buzzer.classList.remove('active-buzzer');
+            buttons.buzzer.disabled = true;
+            buttons.buzzer.style.opacity = '0.7';
+            buttons.buzzer.style.cursor = 'not-allowed';
+        }
+
+        appState.isLocked = true;
 
         // Clear any local selection timer if it was running (edge case)
         if (appState.selectionTimer) {

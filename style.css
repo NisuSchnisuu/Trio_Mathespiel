@@ -1131,6 +1131,9 @@ select option {
 /* MODAL STYLES */
 .modal-overlay.read-only #btn-close-calc-modal {
     display: block !important;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    z-index: 9999 !important;
 }
 
 .modal-overlay {
